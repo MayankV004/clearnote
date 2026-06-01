@@ -6,12 +6,15 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.config import settings
 from app.db.session import get_db
+from app.api.routes.examples import router as examples_router
 
 
-app = FastAPI()
+app = FastAPI(title="ClearNote API")
 
 
+# ---------------------------------------------------------------------------
 # CORS
+# ---------------------------------------------------------------------------
 app.add_middleware(
     CORSMiddleware,
     allow_origins=[settings.FRONTEND_URL],
@@ -21,13 +24,21 @@ app.add_middleware(
 )
 
 
-# Health check route
+# ---------------------------------------------------------------------------
+# Routers
+# ---------------------------------------------------------------------------
+app.include_router(examples_router)   # /public, /protected, /me
+
+
+# ---------------------------------------------------------------------------
+# Core routes
+# ---------------------------------------------------------------------------
+
 @app.get("/health")
 async def health():
     return {"status": "ok"}
 
 
-# Database connection test
 @app.get("/db-test")
 async def db_test(
     db: AsyncSession = Depends(get_db)
