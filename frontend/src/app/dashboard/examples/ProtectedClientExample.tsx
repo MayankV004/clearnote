@@ -69,20 +69,39 @@ export default function ProtectedClientExample() {
   if (!isSignedIn) return <p>Please sign in first.</p>;
 
   return (
-    <div>
-      <h2>Client Component — Clerk Auth Demo</h2>
+    <div className="flex flex-col gap-4">
+      <h2 className="text-lg font-semibold text-slate-800">Client Component (Browser Fetch)</h2>
 
-      <button onClick={fetchProtected} disabled={loading}>
-        GET /protected
-      </button>
+      <div className="flex flex-wrap gap-3">
+        <button
+          onClick={fetchProtected}
+          disabled={loading}
+          className="rounded-lg bg-teal-600 px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-teal-700 disabled:cursor-not-allowed disabled:opacity-50"
+        >
+          GET /protected
+        </button>
 
-      <button onClick={fetchMe} disabled={loading} style={{ marginLeft: 8 }}>
-        GET /me
-      </button>
+        <button
+          onClick={fetchMe}
+          disabled={loading}
+          className="rounded-lg bg-slate-800 px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-slate-900 disabled:cursor-not-allowed disabled:opacity-50"
+        >
+          GET /me
+        </button>
+      </div>
 
-      {loading && <p>Loading…</p>}
-      {error && <p style={{ color: "red" }}>Error: {error}</p>}
-      {data && <pre>{JSON.stringify(data, null, 2)}</pre>}
+      {loading && <p className="animate-pulse text-sm font-medium text-slate-500">Loading data from FastAPI...</p>}
+      {error && <p className="text-sm font-medium text-rose-600">Error: {error}</p>}
+      {data && (
+        <div className="overflow-hidden rounded-lg bg-slate-900 shadow-inner">
+          <div className="bg-slate-800 px-4 py-2">
+            <p className="text-xs font-semibold text-slate-300">JSON Response</p>
+          </div>
+          <pre className="overflow-x-auto p-4 text-xs text-emerald-400">
+            {JSON.stringify(data, null, 2)}
+          </pre>
+        </div>
+      )}
     </div>
   );
 }

@@ -41,17 +41,23 @@ export default async function ProtectedServerExample() {
   const user = await res.json();
 
   return (
-    <div>
-      <h2>Server Component — /me</h2>
-      <p>
-        <strong>Name:</strong> {user.first_name} {user.last_name}
-      </p>
-      <p>
-        <strong>Email:</strong> {user.email}
-      </p>
-      <p>
-        <strong>Clerk ID:</strong> {user.id}
-      </p>
+    <div className="flex flex-col gap-4">
+      <h2 className="text-lg font-semibold text-slate-800">Server Component (Node.js Fetch)</h2>
+      
+      <div className="flex flex-col gap-3 rounded-xl border border-slate-200 bg-white p-5 shadow-sm">
+        <div className="flex items-center gap-4 border-b border-slate-100 pb-3">
+          <span className="w-20 text-xs font-semibold uppercase tracking-wide text-slate-500">Name</span>
+          <span className="text-sm font-medium text-slate-900">{user.first_name} {user.last_name}</span>
+        </div>
+        <div className="flex items-center gap-4 border-b border-slate-100 pb-3">
+          <span className="w-20 text-xs font-semibold uppercase tracking-wide text-slate-500">Email</span>
+          <span className="text-sm font-medium text-slate-900">{user.email}</span>
+        </div>
+        <div className="flex items-center gap-4">
+          <span className="w-20 text-xs font-semibold uppercase tracking-wide text-slate-500">Clerk ID</span>
+          <span className="truncate text-xs font-mono text-slate-600">{user.id}</span>
+        </div>
+      </div>
     </div>
   );
 }

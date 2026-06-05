@@ -7,6 +7,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.core.config import settings
 from app.db.session import get_db
 from app.api.routes.examples import router as examples_router
+from app.api.routes.webhooks import router as webhooks_router
 
 
 app = FastAPI(title="ClearNote API")
@@ -28,6 +29,7 @@ app.add_middleware(
 # Routers
 # ---------------------------------------------------------------------------
 app.include_router(examples_router)   # /public, /protected, /me
+app.include_router(webhooks_router)
 
 
 # ---------------------------------------------------------------------------
