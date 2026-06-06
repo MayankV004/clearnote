@@ -26,7 +26,7 @@ export default function Dashboard() {
             <h1 className="text-xl font-bold tracking-tight text-slate-900">ClearNote</h1>
           </div>
           <div className="flex items-center gap-4">
-            <UserButton afterSignOutUrl="/sign-in" />
+            <UserButton />
           </div>
         </div>
       </header>
