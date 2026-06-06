@@ -45,8 +45,12 @@ export default function PatientList({ refreshTrigger }: PatientListProps) {
 
         const data = await res.json();
         setPatients(data);
-      } catch (err: any) {
-        setError(err.message);
+      } catch (err) {
+        if (err instanceof Error) {
+          setError(err.message);
+        } else {
+          setError("An unexpected error occurred");
+        }
       } finally {
         setLoading(false);
       }
