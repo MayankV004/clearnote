@@ -8,7 +8,7 @@ from app.core.config import settings
 from app.db.session import get_db
 from app.api.routes.examples import router as examples_router
 from app.api.routes.webhooks import router as webhooks_router
-
+from app.api.routes.patients import router as patients_router
 
 app = FastAPI(title="ClearNote API")
 
@@ -30,6 +30,7 @@ app.add_middleware(
 # ---------------------------------------------------------------------------
 app.include_router(examples_router)   # /public, /protected, /me
 app.include_router(webhooks_router)
+app.include_router(patients_router)
 
 
 # ---------------------------------------------------------------------------
