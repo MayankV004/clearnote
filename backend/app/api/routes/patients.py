@@ -1,27 +1,20 @@
 from typing import List
+from uuid import UUID
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.future import select
 
-from app.db.session import get_db
-from app.deps.auth import CurrentUser
-from app.db.models.doctor import Doctor
-from app.db.models.patient import Patient
+from app.api.dependencies.db import get_db
+from app.api.dependencies.auth import CurrentUser
+from app.models.doctor import Doctor
+from app.models.patient import Patient
 from app.schemas.patient import PatientCreate, PatientResponse
+from app.api.dependencies.auth import get_current_doctor
+from app.core.exceptions import PatientNotFoundException
 
 router = APIRouter(prefix="/patients", tags=["patients"])
 
-async def get_current_doctor(state: CurrentUser, db: AsyncSession = Depends(get_db)) -> Doctor:
-    """Helper to lookup internal Doctor UUID from Clerk user_id."""
-    clerk_user_id = state.payload["sub"]
-    stmt = select(Doctor).where(Doctor.clerk_user_id == clerk_user_id)
-    doctor = await db.scalar(stmt)
-    if not doctor:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="Doctor profile not found in database. Make sure you signed up correctly."
-        )
-    return doctor
+from app.services.patient_service import PatientService
 
 @router.get("/", response_model=List[PatientResponse])
 async def list_patients(
@@ -29,14 +22,19 @@ async def list_patients(
     db: AsyncSession = Depends(get_db)
 ):
     """List all active patients for the authenticated doctor."""
-    stmt = select(Patient).where(
-        Patient.doctor_id == doctor.id,
-        Patient.deleted_at.is_(None)
-    ).order_by(Patient.created_at.desc())
-    
-    result = await db.execute(stmt)
-    patients = result.scalars().all()
-    return patients
+    return await PatientService.get_patients_for_doctor(db, doctor.id)
+
+@router.get("/{patient_id}", response_model=PatientResponse)
+async def get_patient(
+    patient_id: UUID,
+    doctor: Doctor = Depends(get_current_doctor),
+    db: AsyncSession = Depends(get_db)
+):
+    """Get a single patient by ID (must belong to the authenticated doctor)."""
+    try:
+        return await PatientService.get_patient_by_id(db, doctor.id, patient_id)
+    except PatientNotFoundException:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Patient not found")
 
 @router.post("/", response_model=PatientResponse, status_code=status.HTTP_201_CREATED)
 async def create_patient(
@@ -45,14 +43,4 @@ async def create_patient(
     db: AsyncSession = Depends(get_db)
 ):
     """Create a new patient record."""
-    new_patient = Patient(
-        doctor_id=doctor.id,
-        name=patient_in.name,
-        phone=patient_in.phone,
-        email=patient_in.email,
-        dob=patient_in.dob
-    )
-    db.add(new_patient)
-    await db.commit()
-    await db.refresh(new_patient)
-    return new_patient
+    return await PatientService.create_patient(db, doctor.id, patient_in)

@@ -6,7 +6,7 @@ in `clerk_backend_api`. It accepts any object with a `.headers` mapping
 (FastAPI's `Request` qualifies) and returns a `RequestState`.
 
 Usage in any route:
-    from app.deps.auth import get_current_user
+    from app.api.dependencies.auth import get_current_user
     from clerk_backend_api.security.types import RequestState
 
     @app.get("/protected")
@@ -21,7 +21,12 @@ from clerk_backend_api.security.types import AuthenticateRequestOptions, Request
 from fastapi import Depends, HTTPException, Request, status
 
 from app.core.config import settings
+from app.core.logger import logger
 
+from app.models.doctor import Doctor
+from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.future import select
+from app.api.dependencies.db import get_db
 
 async def get_current_user(request: Request) -> RequestState:
     """
@@ -41,6 +46,7 @@ async def get_current_user(request: Request) -> RequestState:
     if not request_state.is_signed_in:
         # request_state.message gives a human-readable reason (e.g. "Token expired")
         reason = request_state.message or "Not authenticated"
+        logger.warning(f"Clerk authentication failed: {reason}")
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail=reason,
@@ -53,3 +59,16 @@ async def get_current_user(request: Request) -> RequestState:
 # Convenience type alias — use this in route signatures instead of the
 # verbose Annotated[...] form.
 CurrentUser = Annotated[RequestState, Depends(get_current_user)]
+
+async def get_current_doctor(state: CurrentUser, db: AsyncSession = Depends(get_db)) -> Doctor:
+    """Helper to lookup internal Doctor UUID from Clerk user_id."""
+    clerk_user_id = state.payload["sub"]
+    stmt = select(Doctor).where(Doctor.clerk_user_id == clerk_user_id)
+    doctor = await db.scalar(stmt)
+    if not doctor:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Doctor profile not found in database. Make sure you signed up correctly."
+        )
+    return doctor
+

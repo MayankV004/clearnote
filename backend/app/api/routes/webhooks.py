@@ -2,9 +2,10 @@ from fastapi import APIRouter, Request, HTTPException, Depends
 from sqlalchemy.ext.asyncio import AsyncSession
 from svix.webhooks import Webhook, WebhookVerificationError
 from app.core.config import settings
-from app.db.session import get_db
-from app.db.models.doctor import Doctor
+from app.api.dependencies.db import get_db
+from app.models.doctor import Doctor
 from sqlalchemy.dialects.postgresql import insert
+from app.core.logger import logger
 
 router = APIRouter(prefix="/webhooks", tags=["webhooks"])
 
@@ -19,6 +20,7 @@ async def clerk_webhook(request: Request, db: AsyncSession = Depends(get_db)):
     svix_signature = headers.get("svix-signature")
 
     if not svix_id or not svix_timestamp or not svix_signature:
+        logger.error("Webhook failed: Missing svix headers")
         raise HTTPException(status_code=400, detail="Missing svix headers")
 
     wh = Webhook(settings.CLERK_WEBHOOK_SECRET)
@@ -30,6 +32,7 @@ async def clerk_webhook(request: Request, db: AsyncSession = Depends(get_db)):
             "svix-signature": svix_signature
         })
     except WebhookVerificationError:
+        logger.error("Webhook failed: Invalid webhook signature")
         raise HTTPException(status_code=400, detail="Invalid webhook signature")
 
     if event["type"] == "user.created":
@@ -40,14 +43,8 @@ async def clerk_webhook(request: Request, db: AsyncSession = Depends(get_db)):
         last_name = data.get("last_name") or ""
         name = f"{first_name} {last_name}".strip()
 
-        # Insert doctor record, ignore if clerk_user_id already exists
-        stmt = insert(Doctor).values(
-            clerk_user_id=clerk_id,
-            email=email,
-            name=name
-        ).on_conflict_do_nothing(index_elements=["clerk_user_id"])
-        
-        await db.execute(stmt)
-        await db.commit()
+        from app.services.doctor_service import DoctorService
+        await DoctorService.create_doctor_from_clerk(db, clerk_id, email, name)
+        logger.info(f"Successfully processed clerk webhook: created user {email}")
 
     return {"status": "ok"}
