@@ -11,7 +11,7 @@ from clerk_backend_api.security.types import RequestState
 from fastapi import APIRouter, Depends, HTTPException, status
 
 from app.core.config import settings
-from app.deps.auth import CurrentUser, get_current_user
+from app.api.dependencies.auth import CurrentUser, get_current_user
 
 router = APIRouter()
 

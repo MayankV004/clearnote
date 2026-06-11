@@ -1,0 +1,4 @@
+# Models package
+from app.db.base import Base
+from app.models.doctor import Doctor
+from app.models.patient import Patient

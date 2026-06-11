@@ -2,6 +2,7 @@
 
 import { useAuth } from "@clerk/nextjs";
 import { useEffect, useState } from "react";
+import Link from "next/link";
 
 const API = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8000";
 
@@ -112,9 +113,12 @@ export default function PatientList({ refreshTrigger }: PatientListProps) {
                 </div>
               </div>
             </div>
-            <button className="rounded-lg border border-slate-200 px-4 py-2 text-sm font-medium text-slate-600 transition-colors hover:bg-slate-100 hover:text-slate-900">
+            <Link
+              href={`/dashboard/patients/${patient.id}`}
+              className="rounded-full border border-slate-200 px-4 py-2 text-sm font-medium text-slate-600 transition-colors hover:bg-teal-50 hover:border-teal-200 hover:text-teal-700"
+            >
               View Profile
-            </button>
+            </Link>
           </li>
         ))}
       </ul>
