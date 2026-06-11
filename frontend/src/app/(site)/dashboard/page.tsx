@@ -1,7 +1,7 @@
 "use client";
 
 import { useAuth, useUser, UserButton } from "@clerk/nextjs";
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect } from "react";
 import Link from "next/link";
 import {
   Users,
@@ -97,29 +97,31 @@ export default function Dashboard() {
   const greeting =
     hour < 12 ? "Good morning" : hour < 17 ? "Good afternoon" : "Good evening";
 
-  const fetchData = useCallback(async () => {
-    setLoadingPatients(true);
-    try {
-      const token = await getToken();
-      const headers = { Authorization: `Bearer ${token}` };
-
-      const [patientsRes, doctorRes] = await Promise.all([
-        fetch(`${API}/patients/`, { headers }),
-        fetch(`${API}/doctors/me`, { headers }),
-      ]);
-
-      if (patientsRes.ok) setPatients(await patientsRes.json());
-      if (doctorRes.ok) setDoctor(await doctorRes.json());
-    } catch {
-      // silently fail — UI will show empty states
-    } finally {
-      setLoadingPatients(false);
-    }
-  }, [getToken]);
-
   useEffect(() => {
-    if (isLoaded) fetchData();
-  }, [isLoaded, fetchData, refreshTrigger]);
+    if (!isLoaded) return;
+
+    async function fetchData() {
+      setLoadingPatients(true);
+      try {
+        const token = await getToken();
+        const headers = { Authorization: `Bearer ${token}` };
+
+        const [patientsRes, doctorRes] = await Promise.all([
+          fetch(`${API}/patients/`, { headers }),
+          fetch(`${API}/doctors/me`, { headers }),
+        ]);
+
+        if (patientsRes.ok) setPatients(await patientsRes.json());
+        if (doctorRes.ok) setDoctor(await doctorRes.json());
+      } catch {
+        // silently fail — UI will show empty states
+      } finally {
+        setLoadingPatients(false);
+      }
+    }
+
+    fetchData();
+  }, [isLoaded, getToken, refreshTrigger]);
 
   // Patients added this month
   const thisMonth = patients.filter((p) => {

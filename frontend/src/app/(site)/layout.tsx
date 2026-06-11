@@ -49,7 +49,7 @@ export default function SiteLayout({ children }: { children: React.ReactNode }) 
     };
 
     checkOnboarding();
-  }, [isLoaded, user, router]);
+  }, [isLoaded, user, router, getToken]);
 
   // Show nothing while we check — avoids a flash of the dashboard
   if (!isLoaded || !user) return null;
