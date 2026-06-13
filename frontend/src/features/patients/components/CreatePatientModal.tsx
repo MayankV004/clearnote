@@ -1,62 +1,46 @@
 "use client";
 
-import { useAuth } from "@clerk/nextjs";
 import { useState } from "react";
-
-const API = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8000";
+import { useCreatePatient } from "../api/useCreatePatient";
+import type { CreatePatientPayload } from "../types";
 
 interface CreatePatientModalProps {
   isOpen: boolean;
   onClose: () => void;
-  onSuccess: () => void;
+  onSuccess?: () => void;
 }
 
-export default function CreatePatientModal({ isOpen, onClose, onSuccess }: CreatePatientModalProps) {
-  const { getToken } = useAuth();
-  const [loading, setLoading] = useState(false);
-  const [error, setError] = useState<string | null>(null);
+export default function CreatePatientModal({
+  isOpen,
+  onClose,
+  onSuccess,
+}: CreatePatientModalProps) {
+  const { mutateAsync, isPending, error: mutationError } = useCreatePatient();
+  const [formError, setFormError] = useState<string | null>(null);
 
   if (!isOpen) return null;
 
+  const errorMessage =
+    formError ?? (mutationError instanceof Error ? mutationError.message : null);
+
   async function handleSubmit(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault();
-    setLoading(true);
-    setError(null);
+    setFormError(null);
 
     const formData = new FormData(e.currentTarget);
-    const data = {
+    const payload: CreatePatientPayload = {
       name: formData.get("name") as string,
-      email: formData.get("email") as string || null,
-      phone: formData.get("phone") as string || null,
-      dob: formData.get("dob") as string || null,
+      email: (formData.get("email") as string) || null,
+      phone: (formData.get("phone") as string) || null,
+      dob: (formData.get("dob") as string) || null,
     };
 
     try {
-      const token = await getToken();
-      const res = await fetch(`${API}/patients/`, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: `Bearer ${token}`,
-        },
-        body: JSON.stringify(data),
-      });
-
-      if (!res.ok) {
-        const body = await res.json().catch(() => ({ detail: "Failed to create patient" }));
-        throw new Error(body.detail ?? "Failed to create patient");
-      }
-
-      onSuccess();
+      await mutateAsync(payload);
+      onSuccess?.();
       onClose();
-    } catch (err) {
-      if (err instanceof Error) {
-        setError(err.message);
-      } else {
-        setError("An unexpected error occurred");
-      }
-    } finally {
-      setLoading(false);
+    } catch {
+      // Error is already captured in mutationError from useMutation
     }
   }
 
@@ -73,9 +57,9 @@ export default function CreatePatientModal({ isOpen, onClose, onSuccess }: Creat
           </button>
         </div>
 
-        {error && (
+        {errorMessage && (
           <div className="mb-4 rounded-lg bg-rose-50 p-3 text-sm text-rose-600 border border-rose-200">
-            {error}
+            {errorMessage}
           </div>
         )}
 
@@ -116,7 +100,7 @@ export default function CreatePatientModal({ isOpen, onClose, onSuccess }: Creat
               name="phone"
               id="phone"
               className="w-full rounded-lg border border-slate-300 px-3 py-2 outline-none focus:border-teal-500 focus:ring-1 focus:ring-teal-500"
-              placeholder="+1 (555) 000-0000"
+              placeholder="+91 98765 43210"
             />
           </div>
 
@@ -142,10 +126,10 @@ export default function CreatePatientModal({ isOpen, onClose, onSuccess }: Creat
             </button>
             <button
               type="submit"
-              disabled={loading}
+              disabled={isPending}
               className="flex-1 rounded-lg bg-teal-600 py-2.5 font-medium text-white hover:bg-teal-700 disabled:opacity-50 transition-colors"
             >
-              {loading ? "Saving..." : "Create Patient"}
+              {isPending ? "Saving..." : "Create Patient"}
             </button>
           </div>
         </form>

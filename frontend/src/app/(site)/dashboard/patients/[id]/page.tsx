@@ -1,8 +1,6 @@
 "use client";
 
-import { useAuth } from "@clerk/nextjs";
 import { useParams, useRouter } from "next/navigation";
-import { useEffect, useState } from "react";
 import {
   ArrowLeft,
   User,
@@ -16,38 +14,10 @@ import {
 } from "lucide-react";
 import Link from "next/link";
 
-const API = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8000";
+import { usePatient } from "@/features/patients/api/usePatient";
+import { formatDate, calculateAge, getInitials } from "@/lib/utils";
 
-interface Patient {
-  id: string;
-  name: string;
-  email: string | null;
-  phone: string | null;
-  dob: string | null;
-  created_at: string;
-  updated_at: string;
-  consent_given_at: string | null;
-  consent_version: string | null;
-}
-
-function formatDate(dateStr: string | null): string {
-  if (!dateStr) return "—";
-  return new Date(dateStr).toLocaleDateString("en-IN", {
-    day: "numeric",
-    month: "long",
-    year: "numeric",
-  });
-}
-
-function calculateAge(dob: string | null): string {
-  if (!dob) return "—";
-  const today = new Date();
-  const birth = new Date(dob);
-  let age = today.getFullYear() - birth.getFullYear();
-  const m = today.getMonth() - birth.getMonth();
-  if (m < 0 || (m === 0 && today.getDate() < birth.getDate())) age--;
-  return `${age} years`;
-}
+// ─── Sub-components ───────────────────────────────────────────────────────────
 
 function InfoCard({
   icon: Icon,
@@ -71,44 +41,15 @@ function InfoCard({
   );
 }
 
+// ─── Page ─────────────────────────────────────────────────────────────────────
+
 export default function PatientProfilePage() {
   const { id } = useParams<{ id: string }>();
-  const { getToken, isLoaded } = useAuth();
   const router = useRouter();
 
-  const [patient, setPatient] = useState<Patient | null>(null);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
+  const { data: patient, isLoading, isError, error } = usePatient(id);
 
-  useEffect(() => {
-    if (!isLoaded || !id) return;
-
-    async function fetchPatient() {
-      setLoading(true);
-      setError(null);
-      try {
-        const token = await getToken();
-        const res = await fetch(`${API}/patients/${id}`, {
-          headers: { Authorization: `Bearer ${token}` },
-        });
-        if (res.status === 404) {
-          router.replace("/dashboard");
-          return;
-        }
-        if (!res.ok) throw new Error("Failed to load patient data.");
-        const data = await res.json();
-        setPatient(data);
-      } catch (e: unknown) {
-        setError(e instanceof Error ? e.message : "Something went wrong.");
-      } finally {
-        setLoading(false);
-      }
-    }
-
-    fetchPatient();
-  }, [isLoaded, id, getToken, router]);
-
-  if (loading) {
+  if (isLoading) {
     return (
       <div className="min-h-screen bg-white flex items-center justify-center">
         <Loader2 className="w-6 h-6 animate-spin text-teal-600" />
@@ -116,11 +57,14 @@ export default function PatientProfilePage() {
     );
   }
 
-  if (error || !patient) {
+  if (isError || !patient) {
+    const message = isError
+      ? (error instanceof Error ? error.message : "Failed to load patient.")
+      : "Patient not found.";
     return (
       <div className="min-h-screen bg-white flex items-center justify-center">
         <div className="text-center">
-          <p className="text-red-500 font-semibold">{error ?? "Patient not found."}</p>
+          <p className="text-red-500 font-semibold">{message}</p>
           <Link href="/dashboard" className="mt-4 inline-block text-sm text-teal-600 hover:underline">
             Back to Dashboard
           </Link>
@@ -129,12 +73,7 @@ export default function PatientProfilePage() {
     );
   }
 
-  const initials = patient.name
-    .split(" ")
-    .map((n) => n[0])
-    .slice(0, 2)
-    .join("")
-    .toUpperCase();
+  const initials = getInitials(patient.name);
 
   return (
     <div className="min-h-screen bg-white text-slate-900 selection:bg-teal-500/30">
@@ -154,7 +93,6 @@ export default function PatientProfilePage() {
             </div>
           </div>
 
-          {/* Action Buttons */}
           <div className="flex items-center gap-3">
             <button
               disabled
@@ -199,17 +137,13 @@ export default function PatientProfilePage() {
             {/* Quick Info */}
             <div className="bg-white border border-slate-200 rounded-3xl p-6 shadow-sm space-y-3">
               <h3 className="text-sm font-bold text-slate-700 uppercase tracking-wider mb-4">
-                Contact & Details
+                Contact &amp; Details
               </h3>
               <InfoCard icon={Phone} label="Phone" value={patient.phone ?? "—"} />
               <InfoCard icon={Mail} label="Email" value={patient.email ?? "—"} />
               <InfoCard icon={Calendar} label="Date of Birth" value={formatDate(patient.dob)} />
               <InfoCard icon={User} label="Age" value={calculateAge(patient.dob)} />
-              <InfoCard
-                icon={Clock}
-                label="Last Updated"
-                value={formatDate(patient.updated_at)}
-              />
+              <InfoCard icon={Clock} label="Last Updated" value={formatDate(patient.updated_at)} />
             </div>
           </div>
 
@@ -232,7 +166,6 @@ export default function PatientProfilePage() {
                 </button>
               </div>
 
-              {/* Empty State */}
               <div className="flex flex-col items-center justify-center py-14 text-center">
                 <div className="w-14 h-14 rounded-2xl bg-slate-100 flex items-center justify-center mb-4">
                   <FileText className="w-7 h-7 text-slate-400" />

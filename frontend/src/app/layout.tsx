@@ -3,6 +3,7 @@ import { Geist, Geist_Mono } from "next/font/google";
 import "./globals.css";
 import { ClerkProvider } from "@clerk/nextjs";
 import { SmoothScroll } from "./ui/SmoothScroll";
+import { ReactQueryProvider } from "@/components/providers/ReactQueryProvider";
 
 const geistSans = Geist({
   variable: "--font-geist-sans",
@@ -31,9 +32,11 @@ export default function RootLayout({
       className={`${geistSans.variable} ${geistMono.variable} h-full antialiased`}
     >
       <body className="min-h-full flex flex-col">
-        <SmoothScroll>
-          {children}
-        </SmoothScroll>
+        <ReactQueryProvider>
+          {/* <SmoothScroll> */}
+            {children}
+          {/* </SmoothScroll> */}
+        </ReactQueryProvider>
       </body>
     </html>
     </ClerkProvider>
