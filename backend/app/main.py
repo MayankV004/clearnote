@@ -10,6 +10,7 @@ from app.api.routes.examples import router as examples_router
 from app.api.routes.webhooks import router as webhooks_router
 from app.api.routes.patients import router as patients_router
 from app.api.routes.doctors import router as doctors_router
+from app.api.routes.consultations import router as consultations_router
 
 app = FastAPI(title="ClearNote API")
 
@@ -33,6 +34,7 @@ app.include_router(examples_router)   # /public, /protected, /me
 app.include_router(webhooks_router)
 app.include_router(patients_router)
 app.include_router(doctors_router)
+app.include_router(consultations_router)
 
 # ---------------------------------------------------------------------------
 # Core routes

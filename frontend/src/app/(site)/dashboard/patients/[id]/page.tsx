@@ -15,7 +15,10 @@ import {
 import Link from "next/link";
 
 import { usePatient } from "@/features/patients/api/usePatient";
+import { ConsultationList } from "@/features/consultations/components/ConsultationList";
+import { AudioRecorderModal } from "@/features/consultations/components/AudioRecorderModal";
 import { formatDate, calculateAge, getInitials } from "@/lib/utils";
+import { useState } from "react";
 
 // ─── Sub-components ───────────────────────────────────────────────────────────
 
@@ -46,6 +49,7 @@ function InfoCard({
 export default function PatientProfilePage() {
   const { id } = useParams<{ id: string }>();
   const router = useRouter();
+  const [isRecordingModalOpen, setIsRecordingModalOpen] = useState(false);
 
   const { data: patient, isLoading, isError, error } = usePatient(id);
 
@@ -95,9 +99,8 @@ export default function PatientProfilePage() {
 
           <div className="flex items-center gap-3">
             <button
-              disabled
-              className="inline-flex items-center gap-2 px-4 py-2 rounded-full border border-slate-200 text-sm font-medium text-slate-400 cursor-not-allowed"
-              title="Coming soon"
+              onClick={() => setIsRecordingModalOpen(true)}
+              className="inline-flex items-center gap-2 px-4 py-2 rounded-full border border-teal-200 bg-teal-50 hover:bg-teal-100 text-sm font-semibold text-teal-700 transition-colors"
             >
               <Stethoscope className="w-4 h-4" />
               Start Consultation
@@ -149,37 +152,8 @@ export default function PatientProfilePage() {
 
           {/* ── Right Column: Activity & Consultations ──────────── */}
           <div className="lg:col-span-2 space-y-6">
-            {/* Consultation History Placeholder */}
-            <div className="bg-white border border-slate-200 rounded-3xl p-6 shadow-sm">
-              <div className="flex items-center justify-between mb-6">
-                <div>
-                  <h3 className="text-base font-bold text-slate-900">Consultation History</h3>
-                  <p className="text-sm text-slate-500 mt-0.5">Past visits and notes</p>
-                </div>
-                <button
-                  disabled
-                  className="inline-flex items-center gap-2 px-4 py-2 rounded-full bg-teal-600 text-white text-sm font-semibold opacity-50 cursor-not-allowed"
-                  title="Coming soon"
-                >
-                  <Stethoscope className="w-4 h-4" />
-                  New Session
-                </button>
-              </div>
-
-              <div className="flex flex-col items-center justify-center py-14 text-center">
-                <div className="w-14 h-14 rounded-2xl bg-slate-100 flex items-center justify-center mb-4">
-                  <FileText className="w-7 h-7 text-slate-400" />
-                </div>
-                <h4 className="font-semibold text-slate-700">No consultations yet</h4>
-                <p className="mt-2 text-sm text-slate-400 max-w-sm">
-                  Once you record a consultation session with this patient, it will appear here with the AI-generated SOAP note.
-                </p>
-                <div className="mt-4 inline-flex items-center gap-2 px-3 py-1.5 rounded-full bg-teal-50 border border-teal-100 text-teal-600 text-xs font-medium">
-                  <Stethoscope className="w-3.5 h-3.5" />
-                  Consultation recording — coming soon
-                </div>
-              </div>
-            </div>
+            {/* Consultation History */}
+            <ConsultationList patientId={id} />
 
             {/* Consent Details */}
             <div className="bg-white border border-slate-200 rounded-3xl p-6 shadow-sm">
@@ -200,6 +174,12 @@ export default function PatientProfilePage() {
           </div>
         </div>
       </main>
+
+      <AudioRecorderModal 
+        isOpen={isRecordingModalOpen} 
+        onClose={() => setIsRecordingModalOpen(false)} 
+        patientId={id} 
+      />
     </div>
   );
 }
