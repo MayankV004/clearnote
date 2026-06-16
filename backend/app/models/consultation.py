@@ -20,7 +20,7 @@ class Consultation(Base):
     
     audio_s3_key = Column(String, nullable=True)
     status = Column(Enum(ConsultationStatus), default=ConsultationStatus.PENDING, nullable=False)
-    whisper_job_id = Column(String, nullable=True)
+    transcription_job_id = Column(String, nullable=True)
     duration_seconds = Column(Integer, nullable=True)
     processing_error = Column(String, nullable=True)
     
@@ -30,7 +30,7 @@ class Consultation(Base):
     # Relationships
     patient = relationship("Patient")
     doctor = relationship("Doctor")
-    soap_note = relationship("SOAPNote", back_populates="consultation", uselist=False)
+    soap_note = relationship("SOAPNote", back_populates="consultation", uselist=False, lazy="selectin")
     medications = relationship("Medication", back_populates="consultation")
     diagnoses = relationship("Diagnosis", back_populates="consultation")
     interactions = relationship("Interaction", back_populates="consultation")

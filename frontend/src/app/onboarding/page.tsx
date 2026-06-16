@@ -18,7 +18,7 @@ import {
 } from "lucide-react";
 import { useAuth, useUser } from "@clerk/nextjs";
 import { useRouter } from "next/navigation";
-import { doctorOnboardingSchema, type DoctorOnboardingFormValues } from "@/lib/validations/doctor";
+import { doctorOnboardingSchema, type DoctorOnboardingFormValues } from "@/features/doctor/validations";
 
 const STEPS = [
   {

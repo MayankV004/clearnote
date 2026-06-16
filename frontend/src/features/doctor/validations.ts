@@ -1,3 +1,10 @@
+/**
+ * features/doctor/validations.ts
+ *
+ * Zod validation schemas for doctor-related forms.
+ * Moved from src/lib/validations/doctor.ts to keep the doctor feature cohesive.
+ */
+
 import { z } from "zod";
 
 export const doctorOnboardingSchema = z.object({
