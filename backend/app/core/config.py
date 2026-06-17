@@ -9,6 +9,7 @@ class Settings(BaseSettings):
     CLERK_AUTHORIZED_PARTIES: list[str] = ["http://localhost:3000"]
     FRONTEND_URL: str
     DEEPGRAM_API_KEY: str
+    GROQ_API_KEY: str
     AWS_ACCESS_KEY_ID: str = "test"
     AWS_SECRET_ACCESS_KEY: str = "test"
     AWS_REGION: str = "us-east-1"

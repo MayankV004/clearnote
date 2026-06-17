@@ -191,18 +191,48 @@ async def _run_transcription(consultation_id: str, s3_key: str) -> None:
             if not transcript:
                 raise ValueError("Deepgram returned an empty transcript.")
 
-            # 5. Save the transcript into a new SOAPNote
+            # 5. Extract structured data using Groq LLM
+            from app.services.llm_service import llm_service
+            from app.models.medication import Medication
+            from app.models.diagnosis import Diagnosis
+
+            structured_data = await llm_service.extract_structured_data(transcript)
+
+            # 6. Save the transcript and parsed fields into a new SOAPNote
             soap_note = SOAPNote(
                 consultation_id=consultation_id,
                 raw_transcript=transcript,
+                subjective=structured_data.subjective,
+                objective=structured_data.objective,
+                assessment=structured_data.assessment,
+                plan=structured_data.plan,
             )
             db.add(soap_note)
+
+            # 7. Add medications
+            for med in structured_data.medications:
+                db.add(Medication(
+                    consultation_id=consultation_id,
+                    name=med.name,
+                    dosage=med.dosage,
+                    frequency=med.frequency,
+                    duration=med.duration,
+                    route=med.route
+                ))
+
+            # 8. Add diagnoses
+            for diag in structured_data.diagnoses:
+                db.add(Diagnosis(
+                    consultation_id=consultation_id,
+                    icd_code=diag.icd_code,
+                    description=diag.description
+                ))
             
-            # 6. Mark consultation as COMPLETE
+            # 9. Mark consultation as COMPLETE
             consultation.status = ConsultationStatus.COMPLETE
             await db.commit()
 
-            logger.info(f"Successfully transcribed and created SOAP note for {consultation_id}")
+            logger.info(f"Successfully transcribed and extracted SOAP data for {consultation_id}")
 
         except Exception as e:
             # Handle any failure (S3 error, Deepgram error, DB error)
