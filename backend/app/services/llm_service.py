@@ -57,7 +57,7 @@ JSON Schema structure to match:
                     {"role": "system", "content": system_prompt},
                     {"role": "user", "content": f"Transcript:\n{transcript}"}
                 ],
-                model="llama3-70b-8192",
+                model="llama-3.3-70b-versatile",
                 response_format={"type": "json_object"},
                 temperature=0.0,
                 max_tokens=2048,

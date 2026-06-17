@@ -3,8 +3,10 @@
 import { useConsultations } from "../api/useConsultations";
 import { FileText, Loader2, AlertCircle } from "lucide-react";
 import { formatDate } from "@/lib/utils";
+import { useRouter } from "next/navigation";
 
 export function ConsultationList({ patientId }: { patientId: string }) {
+  const router = useRouter();
   const { data, isLoading, isError, error } = useConsultations(patientId);
 
   if (isLoading) {
@@ -59,7 +61,15 @@ export function ConsultationList({ patientId }: { patientId: string }) {
 
       <div className="space-y-4">
         {data.map((consultation) => (
-          <div key={consultation.id} className="border border-slate-100 rounded-2xl p-5 hover:border-teal-100 hover:shadow-sm transition-all group cursor-pointer">
+          <div 
+            key={consultation.id} 
+            onClick={() => {
+              if (consultation.status === "COMPLETE") {
+                router.push(`/dashboard/consultations/${consultation.id}`);
+              }
+            }}
+            className="border border-slate-100 rounded-2xl p-5 hover:border-teal-100 hover:shadow-sm transition-all group cursor-pointer"
+          >
             <div className="flex justify-between items-start mb-3">
               <span className="text-sm font-bold text-slate-900">{formatDate(consultation.created_at)}</span>
               {consultation.status === "COMPLETE" && (

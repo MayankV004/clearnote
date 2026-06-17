@@ -1,9 +1,28 @@
 from datetime import datetime
-from typing import Optional
+from typing import Optional, List
 from uuid import UUID
 from pydantic import BaseModel, ConfigDict
 
 from app.models.consultation import ConsultationStatus
+
+
+class MedicationResponse(BaseModel):
+    id: UUID
+    name: str
+    dosage: Optional[str] = None
+    frequency: Optional[str] = None
+    duration: Optional[str] = None
+    route: Optional[str] = None
+    rag_checked: bool = False
+    rag_verdict: Optional[str] = None
+    model_config = ConfigDict(from_attributes=True)
+
+
+class DiagnosisResponse(BaseModel):
+    id: UUID
+    icd_code: Optional[str] = None
+    description: str
+    model_config = ConfigDict(from_attributes=True)
 
 
 class SOAPNoteResponse(BaseModel):
@@ -29,4 +48,6 @@ class ConsultationResponse(BaseModel):
     processing_error: Optional[str] = None
     created_at: datetime
     soap_note: Optional[SOAPNoteResponse] = None   # None until transcription completes
+    medications: List[MedicationResponse] = []
+    diagnoses: List[DiagnosisResponse] = []
     model_config = ConfigDict(from_attributes=True)

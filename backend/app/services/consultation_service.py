@@ -7,6 +7,7 @@ import boto3
 from fastapi import BackgroundTasks
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.future import select
+from sqlalchemy.orm import selectinload
 
 from app.core.config import settings
 from app.core.logger import logger
@@ -52,7 +53,10 @@ class ConsultationService:
         await db.commit()
         
         # Re-fetch to ensure relationships (like soap_note) are eager loaded
-        stmt = select(Consultation).where(Consultation.id == consultation.id)
+        stmt = select(Consultation).where(Consultation.id == consultation.id).options(
+            selectinload(Consultation.medications),
+            selectinload(Consultation.diagnoses)
+        )
         consultation = await db.scalar(stmt)
 
         logger.info(f"Created consultation {consultation.id} for patient {patient_id}")
@@ -66,7 +70,10 @@ class ConsultationService:
             Consultation.patient_id == patient_id,
             Consultation.doctor_id == doctor_id,
             Consultation.deleted_at.is_(None),
-        ).order_by(Consultation.created_at.desc())
+        ).order_by(Consultation.created_at.desc()).options(
+            selectinload(Consultation.medications),
+            selectinload(Consultation.diagnoses)
+        )
 
         result = await db.execute(stmt)
         return result.scalars().all()
@@ -78,6 +85,9 @@ class ConsultationService:
         stmt = select(Consultation).where(
             Consultation.id == consultation_id,
             Consultation.doctor_id == doctor_id,
+        ).options(
+            selectinload(Consultation.medications),
+            selectinload(Consultation.diagnoses)
         )
         consultation = await db.scalar(stmt)
         if not consultation:
