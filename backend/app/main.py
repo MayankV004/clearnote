@@ -1,10 +1,17 @@
-from fastapi import FastAPI, Depends
+from fastapi import FastAPI, Depends, Request
+from fastapi.responses import JSONResponse
 from fastapi.middleware.cors import CORSMiddleware
 
 from sqlalchemy import text
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.config import settings
+from app.core.exceptions import (
+    ConsultationNotFoundException,
+    PatientNotFoundException,
+    PatientNotOwnedException,
+    DoctorNotFoundException,
+)
 from app.api.dependencies.db import get_db
 from app.api.routes.examples import router as examples_router
 from app.api.routes.webhooks import router as webhooks_router
@@ -35,6 +42,30 @@ app.include_router(webhooks_router)
 app.include_router(patients_router)
 app.include_router(doctors_router)
 app.include_router(consultations_router)
+
+
+# ---------------------------------------------------------------------------
+# Exception handlers
+# ---------------------------------------------------------------------------
+
+@app.exception_handler(ConsultationNotFoundException)
+async def consultation_not_found_handler(request: Request, exc: ConsultationNotFoundException):
+    return JSONResponse(status_code=404, content={"detail": exc.message})
+
+
+@app.exception_handler(PatientNotFoundException)
+async def patient_not_found_handler(request: Request, exc: PatientNotFoundException):
+    return JSONResponse(status_code=404, content={"detail": exc.message})
+
+
+@app.exception_handler(DoctorNotFoundException)
+async def doctor_not_found_handler(request: Request, exc: DoctorNotFoundException):
+    return JSONResponse(status_code=404, content={"detail": exc.message})
+
+
+@app.exception_handler(PatientNotOwnedException)
+async def patient_not_owned_handler(request: Request, exc: PatientNotOwnedException):
+    return JSONResponse(status_code=403, content={"detail": exc.message})
 
 # ---------------------------------------------------------------------------
 # Core routes

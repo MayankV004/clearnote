@@ -9,7 +9,7 @@ from app.api.dependencies.auth import get_current_doctor
 from app.api.dependencies.db import get_db
 from app.core.exceptions import ConsultationNotFoundException, PatientNotOwnedException
 from app.core.logger import logger
-from app.models.consultation import Consultation
+from app.models.consultation import Consultation, ConsultationStatus
 from app.models.doctor import Doctor
 from app.schemas.consultation import ConsultationCreate, ConsultationResponse
 from app.services.consultation_service import ConsultationService
@@ -90,12 +90,28 @@ async def audio_stream(
         
         # Connection closed - save and process the audio if we received any
         if len(audio_chunks) > 0:
-            await ConsultationService.save_audio_and_transcribe(
-                db=db,
-                consultation=consultation,
-                audio_bytes=bytes(audio_chunks),
-                background_tasks=background_tasks
-            )
-            # WebSockets skip standard HTTP response background tasks execution,
-            # so we must trigger them manually.
-            await background_tasks()
+            try:
+                await ConsultationService.save_audio_and_transcribe(
+                    db=db,
+                    consultation=consultation,
+                    audio_bytes=bytes(audio_chunks),
+                    background_tasks=background_tasks
+                )
+                # WebSockets skip standard HTTP response background tasks execution,
+                # so we must trigger them manually.
+                await background_tasks()
+            except Exception as exc:
+                logger.error(
+                    f"Failed to process audio for {consultation_id}: {exc}",
+                    exc_info=True,
+                )
+                try:
+                    await db.refresh(consultation)
+                    consultation.status = ConsultationStatus.FAILED
+                    consultation.processing_error = str(exc)
+                    await db.commit()
+                    logger.info(f"Consultation {consultation_id}: marked FAILED after audio processing error.")
+                except Exception as commit_exc:
+                    logger.error(
+                        f"Could not save FAILED status for {consultation_id}: {commit_exc}"
+                    )
