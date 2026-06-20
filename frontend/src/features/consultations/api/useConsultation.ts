@@ -13,12 +13,18 @@ export function useConsultation(consultationId: string | null) {
     queryKey: ["consultation", consultationId],
     queryFn: () => api.get<Consultation>(`/consultations/${consultationId}`),
     enabled: !!isSignedIn && !!consultationId,
-    // Poll every 2 seconds if the backend is processing it
+    // Poll every 2 seconds while the backend is processing
     refetchInterval: (query) => {
-        const status = query.state.data?.status;
-        if (status === "PENDING" || status === "PROCESSING") return 2000;
-        return false;
+      const data = query.state.data;
+      if (!data) return 2000; // keep polling until we get initial data
+      if (data.status === "PENDING" || data.status === "PROCESSING") return 2000;
+      return false; // stop polling once COMPLETE or FAILED
     },
-    staleTime: 1000 * 60 * 5,
+    // Keep polling even if the browser tab loses focus
+    refetchIntervalInBackground: true,
+    // No staleTime — we always want the freshest status during polling
+    staleTime: 0,
+    // Don't retry on failure; the refetchInterval will handle retries naturally
+    retry: false,
   });
 }

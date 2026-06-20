@@ -1,30 +1,16 @@
-import os
-import time
-import tempfile
 from typing import List
 
-import boto3
 from fastapi import BackgroundTasks
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.future import select
 from sqlalchemy.orm import selectinload
 
-from app.core.config import settings
 from app.core.logger import logger
 from app.core.exceptions import ConsultationNotFoundException, PatientNotOwnedException
 from app.models.consultation import Consultation, ConsultationStatus
 from app.models.patient import Patient
 from app.models.soap_note import SOAPNote
 
-def get_s3_client():
-    kwargs = dict(
-        region_name=settings.AWS_REGION,
-        aws_access_key_id=settings.AWS_ACCESS_KEY_ID,
-        aws_secret_access_key=settings.AWS_SECRET_ACCESS_KEY,
-    )
-    if settings.AWS_ENDPOINT_URL:
-        kwargs["endpoint_url"] = settings.AWS_ENDPOINT_URL
-    return boto3.client("s3", **kwargs)
 
 class ConsultationService:
 
@@ -95,28 +81,6 @@ class ConsultationService:
         return consultation
 
     @staticmethod
-    def upload_audio_to_s3(audio_bytes: bytes, consultation_id: str) -> str:
-        """
-        Uploads raw audio bytes to S3.
-        Returns the S3 key on success.
-        """
-        s3 = get_s3_client()
-        key = f"audio/{consultation_id}.webm"
-        
-        try:
-            s3.put_object(
-                Bucket=settings.AUDIO_BUCKET_NAME,
-                Key=key,
-                Body=audio_bytes,
-                ContentType="audio/webm",
-            )
-            logger.info(f"Successfully uploaded audio to S3: {key}")
-            return key
-        except Exception as e:
-            logger.error(f"Failed to upload audio to S3 for {consultation_id}: {e}")
-            raise e
-
-    @staticmethod
     async def save_audio_and_transcribe(
         db: AsyncSession,
         consultation: Consultation,
@@ -125,18 +89,17 @@ class ConsultationService:
     ) -> None:
         """
         Orchestrates the audio pipeline:
-        1. Uploads audio to S3.
+        1. Uploads audio to S3 via s3_service.
         2. Saves the S3 key to the consultation record.
         3. Enqueues a background task for Deepgram transcription.
         """
-        # Upload the audio file first
-        s3_key = ConsultationService.upload_audio_to_s3(audio_bytes, str(consultation.id))
+        from app.services.s3_service import s3_service
 
-        # Update the database record with the new S3 key
+        s3_key = await s3_service.upload_audio(audio_bytes, str(consultation.id))
+
         consultation.audio_s3_key = s3_key
         await db.commit()
 
-        # Enqueue the heavy transcription task
         background_tasks.add_task(
             _run_transcription,
             consultation_id=str(consultation.id),
@@ -148,67 +111,56 @@ class ConsultationService:
 
 async def _run_transcription(consultation_id: str, s3_key: str) -> None:
     """
-    Downloads audio from S3 and transcribes it using Deepgram's Nova-2 Medical model.
-    Creates a SOAPNote with the raw transcript.
+    Downloads audio from S3 via s3_service and transcribes it via deepgram_service.
+    Creates a SOAPNote with the raw transcript and structured SOAP data.
     """
-    # Local import to avoid circular dependencies
     from app.db.session import AsyncSessionLocal
+    from app.services.s3_service import s3_service
+    from app.services.deepgram_service import deepgram_service
+    from app.services.llm_service import llm_service
+    from app.models.medication import Medication
+    from app.models.diagnosis import Diagnosis
 
     async with AsyncSessionLocal() as db:
-        # 1. Fetch the consultation
+        # 1. Fetch the consultation and mark PROCESSING
         stmt = select(Consultation).where(Consultation.id == consultation_id)
         consultation = await db.scalar(stmt)
         if not consultation:
             logger.error(f"Consultation {consultation_id} not found in background task.")
             return
 
-        # 2. Update status to PROCESSING
         consultation.status = ConsultationStatus.PROCESSING
         await db.commit()
+        # IMPORTANT: After commit(), SQLAlchemy expires all ORM objects.
+        # We must re-fetch the consultation so it is bound to the current session
+        # and attribute assignments in the finally/except blocks work correctly.
+        await db.refresh(consultation)
 
-        tmp_path = None
+        logger.info(f"Consultation {consultation_id}: status set to PROCESSING.")
+
+        failed = False
+        error_message = ""
 
         try:
-            from starlette.concurrency import run_in_threadpool
-            
-            s3 = get_s3_client()
-            with tempfile.NamedTemporaryFile(suffix=".webm", delete=False) as tmp:
-                tmp_path = tmp.name
-            
-            # Run the synchronous boto3 download in a threadpool to avoid blocking the event loop
-            await run_in_threadpool(s3.download_file, settings.AUDIO_BUCKET_NAME, s3_key, tmp_path)
-            logger.info(f"Downloaded S3 audio for {consultation_id} to {tmp_path}")
+            # 2. Download audio from S3
+            audio_bytes = await s3_service.download_audio(s3_key)
+            logger.info(f"Consultation {consultation_id}: downloaded {len(audio_bytes):,} bytes from S3.")
 
-            from deepgram import AsyncDeepgramClient
-            deepgram = AsyncDeepgramClient(api_key=settings.DEEPGRAM_API_KEY)
-            
-            with open(tmp_path, "rb") as audio:
-                audio_data = audio.read()
-
-            logger.info(f"Sending audio to Deepgram for consultation {consultation_id}...")
-            # Use async client to avoid blocking the event loop
-            response = await deepgram.listen.v1.media.transcribe_file(
-                request=audio_data, 
-                model="nova-2-medical",
-                smart_format=True,
-                diarize=True,
-                punctuate=True
+            # 3. Transcribe with Deepgram
+            result = await deepgram_service.transcribe_audio(
+                audio_bytes,
+                consultation_id=consultation_id,
             )
-            
-            # Extract transcript string from Deepgram's JSON response
-            transcript = response.results.channels[0].alternatives[0].transcript
-            
-            if not transcript:
-                raise ValueError("Deepgram returned an empty transcript.")
+            if result.is_empty:
+                raise ValueError("Deepgram returned an empty transcript. Audio may be too short or silent.")
 
-            # 5. Extract structured data using Groq LLM
-            from app.services.llm_service import llm_service
-            from app.models.medication import Medication
-            from app.models.diagnosis import Diagnosis
+            transcript = result.transcript
+            logger.info(f"Consultation {consultation_id}: transcript length={len(transcript)} chars.")
 
+            # 4. Extract structured SOAP data via Groq LLM
             structured_data = await llm_service.extract_structured_data(transcript)
 
-            # 6. Save the transcript and parsed fields into a new SOAPNote
+            # 5. Save SOAPNote
             soap_note = SOAPNote(
                 consultation_id=consultation_id,
                 raw_transcript=transcript,
@@ -219,7 +171,7 @@ async def _run_transcription(consultation_id: str, s3_key: str) -> None:
             )
             db.add(soap_note)
 
-            # 7. Add medications
+            # 6. Add medications
             for med in structured_data.medications:
                 db.add(Medication(
                     consultation_id=consultation_id,
@@ -227,31 +179,42 @@ async def _run_transcription(consultation_id: str, s3_key: str) -> None:
                     dosage=med.dosage,
                     frequency=med.frequency,
                     duration=med.duration,
-                    route=med.route
+                    route=med.route,
                 ))
 
-            # 8. Add diagnoses
+            # 7. Add diagnoses
             for diag in structured_data.diagnoses:
                 db.add(Diagnosis(
                     consultation_id=consultation_id,
                     icd_code=diag.icd_code,
-                    description=diag.description
+                    description=diag.description,
                 ))
-            
-            # 9. Mark consultation as COMPLETE
+
+            # 8. Mark COMPLETE — the consultation is refreshed so this is safe
             consultation.status = ConsultationStatus.COMPLETE
             await db.commit()
 
-            logger.info(f"Successfully transcribed and extracted SOAP data for {consultation_id}")
+            logger.info(
+                f"Consultation {consultation_id}: pipeline complete — status=COMPLETE."
+            )
 
-        except Exception as e:
-            # Handle any failure (S3 error, Deepgram error, DB error)
-            logger.error(f"Transcription failed for {consultation_id}: {e}")
-            consultation.status = ConsultationStatus.FAILED
-            consultation.processing_error = str(e)
-            await db.commit()
+        except Exception as exc:
+            logger.error(f"Transcription pipeline failed for {consultation_id}: {exc}", exc_info=True)
+            failed = True
+            error_message = str(exc)
 
         finally:
-            # Always clean up temporary files to prevent disk leaks
-            if tmp_path and os.path.exists(tmp_path):
-                os.unlink(tmp_path)
+            # Always guarantee the status is persisted — even if the except
+            # block itself would raise (e.g. DB temporarily unavailable).
+            if failed:
+                try:
+                    # db.refresh() ensures the object is in the current session scope.
+                    await db.refresh(consultation)
+                    consultation.status = ConsultationStatus.FAILED
+                    consultation.processing_error = error_message
+                    await db.commit()
+                    logger.info(f"Consultation {consultation_id}: status set to FAILED.")
+                except Exception as commit_exc:
+                    logger.error(
+                        f"Could not save FAILED status for {consultation_id}: {commit_exc}"
+                    )
