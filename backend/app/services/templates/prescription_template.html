@@ -1,0 +1,159 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Prescription</title>
+    <style>
+        @page {
+            size: A4;
+            margin: 2cm;
+        }
+        body {
+            font-family: 'Helvetica Neue', Helvetica, Arial, sans-serif;
+            color: #333;
+            line-height: 1.6;
+        }
+        .header {
+            text-align: center;
+            border-bottom: 2px solid #0d9488;
+            padding-bottom: 20px;
+            margin-bottom: 30px;
+        }
+        .header h1 {
+            margin: 0;
+            color: #0d9488;
+            font-size: 28px;
+        }
+        .header p {
+            margin: 5px 0 0 0;
+            font-size: 14px;
+            color: #666;
+        }
+        .info-section {
+            display: flex;
+            justify-content: space-between;
+            margin-bottom: 30px;
+            font-size: 14px;
+        }
+        .info-block {
+            width: 48%;
+        }
+        .info-block p {
+            margin: 5px 0;
+        }
+        .rx-symbol {
+            font-size: 48px;
+            font-weight: bold;
+            color: #0d9488;
+            margin-bottom: 20px;
+            font-family: serif;
+        }
+        .section-title {
+            background-color: #f0fdfa;
+            color: #0d9488;
+            padding: 8px 12px;
+            font-weight: bold;
+            margin-bottom: 15px;
+            border-left: 4px solid #0d9488;
+        }
+        .medication-list {
+            list-style: none;
+            padding: 0;
+        }
+        .medication-item {
+            margin-bottom: 20px;
+            padding-bottom: 10px;
+            border-bottom: 1px solid #eee;
+        }
+        .med-name {
+            font-weight: bold;
+            font-size: 16px;
+        }
+        .med-details {
+            font-size: 14px;
+            color: #555;
+            margin-left: 10px;
+        }
+        .footer {
+            margin-top: 60px;
+            text-align: right;
+        }
+        .signature-line {
+            display: inline-block;
+            border-bottom: 1px solid #333;
+            width: 200px;
+            margin-bottom: 10px;
+        }
+        .soap-content {
+            font-size: 14px;
+            margin-bottom: 20px;
+        }
+    </style>
+</head>
+<body>
+
+    <div class="header">
+        <h1>{{ doctor.name }}</h1>
+        <p>Medical License: {{ doctor.license_no or 'N/A' }}</p>
+        <p>{{ doctor.email }}</p>
+    </div>
+
+    <div class="info-section">
+        <div class="info-block">
+            <strong>Patient Information:</strong>
+            <p>Name: {{ patient.name }}</p>
+            <p>DOB: {{ patient.dob.strftime('%Y-%m-%d') if patient.dob else 'N/A' }}</p>
+            <p>Email: {{ patient.email or 'N/A' }}</p>
+            <p>Phone: {{ patient.phone or 'N/A' }}</p>
+        </div>
+        <div class="info-block" style="text-align: right;">
+            <strong>Consultation Details:</strong>
+            <p>Date: {{ consultation.created_at.strftime('%B %d, %Y') }}</p>
+            <p>ID: {{ str(consultation.id)[:8] }}</p>
+        </div>
+    </div>
+
+    <div class="section-title">Clinical Notes</div>
+    <div class="soap-content">
+        <p><strong>Subjective:</strong> {{ soap_note.subjective }}</p>
+        <p><strong>Objective:</strong> {{ soap_note.objective }}</p>
+        <p><strong>Assessment:</strong> {{ soap_note.assessment }}</p>
+        <p><strong>Plan:</strong> {{ soap_note.plan }}</p>
+    </div>
+
+    {% if diagnoses %}
+    <div class="section-title">Diagnoses</div>
+    <ul>
+        {% for diagnosis in diagnoses %}
+        <li>{{ diagnosis.description }} (ICD-10: {{ diagnosis.icd_code }})</li>
+        {% endfor %}
+    </ul>
+    {% endif %}
+
+    <div class="rx-symbol">Rx</div>
+
+    <div class="section-title">Medications</div>
+    <ul class="medication-list">
+        {% for med in medications %}
+        <li class="medication-item">
+            <div class="med-name">{{ med.name }} - {{ med.dosage }}</div>
+            <div class="med-details">
+                <p><strong>Frequency:</strong> {{ med.frequency }}</p>
+                <p><strong>Duration:</strong> {{ med.duration }}</p>
+                <p><strong>Route:</strong> {{ med.route }}</p>
+            </div>
+        </li>
+        {% endfor %}
+        {% if not medications %}
+        <li>No medications prescribed.</li>
+        {% endif %}
+    </ul>
+
+    <div class="footer">
+        <div class="signature-line"></div>
+        <p><strong>{{ doctor.name }}</strong></p>
+        <p>Doctor's Signature</p>
+    </div>
+
+</body>
+</html>

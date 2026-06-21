@@ -15,6 +15,7 @@ class Settings(BaseSettings):
     AWS_REGION: str = "us-east-1"
     AWS_ENDPOINT_URL: str = "http://localhost:4566"
     AUDIO_BUCKET_NAME: str = "clearnote-audio"
+    PDF_BUCKET_NAME: str = "clearnote-pdfs"
 
     class Config:
         env_file = ".env"

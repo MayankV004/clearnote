@@ -13,6 +13,10 @@ from app.models.consultation import Consultation, ConsultationStatus
 from app.models.doctor import Doctor
 from app.schemas.consultation import ConsultationCreate, ConsultationResponse
 from app.services.consultation_service import ConsultationService
+from app.services.pdf_service import pdf_service
+from app.services.s3_service import s3_service
+from app.core.config import settings
+from fastapi.responses import JSONResponse
 
 router = APIRouter(prefix="/consultations", tags=["consultations"])
 
@@ -115,3 +119,50 @@ async def audio_stream(
                     logger.error(
                         f"Could not save FAILED status for {consultation_id}: {commit_exc}"
                     )
+
+@router.post("/{consultation_id}/prescription", response_model=dict)
+async def generate_prescription(
+    consultation_id: UUID,
+    doctor: Doctor = Depends(get_current_doctor),
+    db: AsyncSession = Depends(get_db),
+):
+    """
+    Generate a PDF prescription for a completed consultation.
+    Returns the presigned URL for the generated PDF.
+    """
+    # Verify ownership
+    stmt = select(Consultation).where(Consultation.id == consultation_id, Consultation.doctor_id == doctor.id)
+    consultation = await db.scalar(stmt)
+    if not consultation:
+        raise ConsultationNotFoundException(str(consultation_id))
+    
+    if consultation.status != ConsultationStatus.COMPLETE:
+        return JSONResponse(status_code=400, content={"message": "Consultation is not complete yet."})
+
+    # Generate PDF
+    try:
+        s3_key = await pdf_service.generate_prescription_pdf(db, str(consultation_id))
+        presigned_url = await s3_service.generate_presigned_url(s3_key, bucket_name=settings.PDF_BUCKET_NAME)
+        return {"url": presigned_url}
+    except ValueError as e:
+        return JSONResponse(status_code=400, content={"message": str(e)})
+
+@router.get("/{consultation_id}/prescription", response_model=dict)
+async def get_prescription(
+    consultation_id: UUID,
+    doctor: Doctor = Depends(get_current_doctor),
+    db: AsyncSession = Depends(get_db),
+):
+    """
+    Get the presigned URL for an already generated PDF prescription.
+    """
+    stmt = select(Consultation).where(Consultation.id == consultation_id, Consultation.doctor_id == doctor.id)
+    consultation = await db.scalar(stmt)
+    if not consultation:
+        raise ConsultationNotFoundException(str(consultation_id))
+
+    if not consultation.prescription_s3_key:
+        return JSONResponse(status_code=404, content={"message": "Prescription not generated yet."})
+
+    presigned_url = await s3_service.generate_presigned_url(consultation.prescription_s3_key, bucket_name=settings.PDF_BUCKET_NAME)
+    return {"url": presigned_url}

@@ -1,8 +1,9 @@
 "use client";
 
 import { useParams, useRouter } from "next/navigation";
-import { ArrowLeft, Loader2, Pill, Stethoscope, AlertCircle, FileText } from "lucide-react";
+import { ArrowLeft, Loader2, Pill, Stethoscope, AlertCircle, FileText, FileDown, CheckCircle2 } from "lucide-react";
 import { useConsultation } from "@/features/consultations/api/useConsultation";
+import { useGeneratePrescription, usePrescription } from "@/features/consultations/api/usePrescription";
 import { formatDate } from "@/lib/utils";
 
 export default function ConsultationReviewPage() {
@@ -10,6 +11,19 @@ export default function ConsultationReviewPage() {
   const router = useRouter();
 
   const { data: consultation, isLoading, isError, error } = useConsultation(id);
+  const { data: prescription, isLoading: isCheckingPrescription, refetch: refetchPrescription } = usePrescription(
+    consultation?.status === "COMPLETE" ? id : null
+  );
+  const generateMutation = useGeneratePrescription();
+
+  const handleGeneratePrescription = async () => {
+    try {
+      await generateMutation.mutateAsync(id);
+      refetchPrescription();
+    } catch (error) {
+      console.error("Failed to generate prescription:", error);
+    }
+  };
 
   if (isLoading) {
     return (
@@ -55,10 +69,37 @@ export default function ConsultationReviewPage() {
               </h1>
             </div>
           </div>
-          <div>
+          <div className="flex items-center gap-4">
             <span className="px-3 py-1.5 rounded-full bg-emerald-50 text-emerald-700 text-xs font-bold tracking-wide uppercase border border-emerald-100">
               {consultation.status}
             </span>
+            
+            {consultation.status === "COMPLETE" && (
+              prescription?.url ? (
+                <a
+                  href={prescription.url}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="inline-flex items-center gap-2 px-4 py-2 bg-teal-50 text-teal-700 rounded-xl font-semibold text-sm hover:bg-teal-100 transition-colors border border-teal-200"
+                >
+                  <CheckCircle2 className="w-4 h-4" />
+                  View Prescription
+                </a>
+              ) : (
+                <button
+                  onClick={handleGeneratePrescription}
+                  disabled={generateMutation.isPending}
+                  className="inline-flex items-center gap-2 px-4 py-2 bg-teal-600 text-white rounded-xl font-semibold text-sm hover:bg-teal-700 transition-colors disabled:opacity-50"
+                >
+                  {generateMutation.isPending ? (
+                    <Loader2 className="w-4 h-4 animate-spin" />
+                  ) : (
+                    <FileDown className="w-4 h-4" />
+                  )}
+                  Generate Prescription
+                </button>
+              )
+            )}
           </div>
         </div>
       </header>
