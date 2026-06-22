@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from "react";
 import { useParams, useRouter } from "next/navigation";
-import { ArrowLeft, Loader2, Pill, Stethoscope, AlertCircle, FileText, FileDown, CheckCircle2, Edit2, Save, X, Plus, Trash2 } from "lucide-react";
+import { ArrowLeft, Loader2, Pill, Stethoscope, AlertCircle, FileText, FileDown, CheckCircle2, Edit2, Save, X, Plus, Trash2, RefreshCw } from "lucide-react";
 import { useConsultation } from "@/features/consultations/api/useConsultation";
 import { useGeneratePrescription, usePrescription } from "@/features/consultations/api/usePrescription";
 import { useUpdateConsultation } from "@/features/consultations/api/useUpdateConsultation";
@@ -138,15 +138,30 @@ export default function ConsultationReviewPage() {
                 )}
 
                 {!isEditing && (prescription?.url ? (
-                  <a
-                    href={prescription.url}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="inline-flex items-center gap-2 px-4 py-2 bg-teal-50 text-teal-700 rounded-xl font-semibold text-sm hover:bg-teal-100 transition-colors border border-teal-200"
-                  >
-                    <CheckCircle2 className="w-4 h-4" />
-                    View Prescription
-                  </a>
+                  <div className="flex items-center gap-2">
+                    <a
+                      href={prescription.url}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="inline-flex items-center gap-2 px-4 py-2 bg-teal-50 text-teal-700 rounded-xl font-semibold text-sm hover:bg-teal-100 transition-colors border border-teal-200"
+                    >
+                      <CheckCircle2 className="w-4 h-4" />
+                      View Prescription
+                    </a>
+                    <button
+                      onClick={handleGeneratePrescription}
+                      disabled={generateMutation.isPending}
+                      className="inline-flex items-center gap-2 px-4 py-2 bg-white text-slate-700 rounded-xl font-semibold text-sm hover:bg-slate-50 transition-colors border border-slate-200 disabled:opacity-50"
+                      title="Regenerate prescription with latest edits"
+                    >
+                      {generateMutation.isPending ? (
+                        <Loader2 className="w-4 h-4 animate-spin" />
+                      ) : (
+                        <RefreshCw className="w-4 h-4" />
+                      )}
+                      Update Prescription
+                    </button>
+                  </div>
                 ) : (
                   <button
                     onClick={handleGeneratePrescription}
