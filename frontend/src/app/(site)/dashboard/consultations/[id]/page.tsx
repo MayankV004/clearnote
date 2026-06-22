@@ -1,19 +1,24 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState } from "react";
 import { useParams, useRouter } from "next/navigation";
 import { ArrowLeft, Loader2, Pill, Stethoscope, AlertCircle, FileText, FileDown, CheckCircle2, Edit2, Save, X, Plus, Trash2, RefreshCw } from "lucide-react";
 import { useConsultation } from "@/features/consultations/api/useConsultation";
 import { useGeneratePrescription, usePrescription } from "@/features/consultations/api/usePrescription";
-import { useUpdateConsultation } from "@/features/consultations/api/useUpdateConsultation";
+import { useUpdateConsultation, ConsultationUpdatePayload } from "@/features/consultations/api/useUpdateConsultation";
+import type { Diagnosis, Medication } from "@/features/consultations/types";
 import { formatDate } from "@/lib/utils";
+
+// Define the exact item types expected in the update payload to avoid 'any'
+type EditDiag = NonNullable<ConsultationUpdatePayload["diagnoses"]>[0];
+type EditMed = NonNullable<ConsultationUpdatePayload["medications"]>[0];
 
 export default function ConsultationReviewPage() {
   const { id } = useParams<{ id: string }>();
   const router = useRouter();
 
   const { data: consultation, isLoading, isError, error } = useConsultation(id);
-  const { data: prescription, isLoading: isCheckingPrescription, refetch: refetchPrescription } = usePrescription(
+  const { data: prescription, refetch: refetchPrescription } = usePrescription(
     consultation?.status === "COMPLETE" ? id : null
   );
   
@@ -21,17 +26,21 @@ export default function ConsultationReviewPage() {
   const updateMutation = useUpdateConsultation(id);
 
   const [isEditing, setIsEditing] = useState(false);
-  const [editData, setEditData] = useState<any>(null);
+  const [editData, setEditData] = useState<ConsultationUpdatePayload | null>(null);
 
-  useEffect(() => {
-    if (consultation && !isEditing) {
-      setEditData({
-        soap_note: consultation.soap_note ? { ...consultation.soap_note } : { subjective: "", objective: "", assessment: "", plan: "" },
-        medications: consultation.medications ? [...consultation.medications] : [],
-        diagnoses: consultation.diagnoses ? [...consultation.diagnoses] : [],
-      });
-    }
-  }, [consultation, isEditing]);
+  const handleEditStart = () => {
+    setEditData({
+      soap_note: consultation?.soap_note ? {
+        subjective: consultation.soap_note.subjective,
+        objective: consultation.soap_note.objective,
+        assessment: consultation.soap_note.assessment,
+        plan: consultation.soap_note.plan,
+      } : { subjective: "", objective: "", assessment: "", plan: "" },
+      medications: consultation?.medications ? [...consultation.medications] : [],
+      diagnoses: consultation?.diagnoses ? [...consultation.diagnoses] : [],
+    });
+    setIsEditing(true);
+  };
 
   const handleGeneratePrescription = async () => {
     try {
@@ -43,14 +52,10 @@ export default function ConsultationReviewPage() {
   };
 
   const handleSave = async () => {
+    if (!editData) return;
     try {
       await updateMutation.mutateAsync({
-        soap_note: {
-          subjective: editData.soap_note.subjective,
-          objective: editData.soap_note.objective,
-          assessment: editData.soap_note.assessment,
-          plan: editData.soap_note.plan,
-        },
+        soap_note: editData.soap_note,
         medications: editData.medications,
         diagnoses: editData.diagnoses,
       });
@@ -130,7 +135,7 @@ export default function ConsultationReviewPage() {
                   </div>
                 ) : (
                   <button
-                    onClick={() => setIsEditing(true)}
+                    onClick={handleEditStart}
                     className="inline-flex items-center gap-2 px-4 py-2 bg-indigo-50 text-indigo-700 rounded-xl font-semibold text-sm hover:bg-indigo-100 transition-colors border border-indigo-200"
                   >
                     <Edit2 className="w-4 h-4" /> Edit
@@ -197,21 +202,24 @@ export default function ConsultationReviewPage() {
                 <p className="text-sm text-slate-500 italic">No SOAP note available.</p>
               ) : (
                 <div className="space-y-6">
-                  {["subjective", "objective", "assessment", "plan"].map((field) => (
+                  {(["subjective", "objective", "assessment", "plan"] as const).map((field) => (
                     <div key={field}>
                       <h3 className="text-sm font-semibold text-slate-700 mb-2 uppercase tracking-wider">{field}</h3>
                       {isEditing ? (
                         <textarea
                           value={editData?.soap_note?.[field] || ""}
-                          onChange={(e) => setEditData({
-                            ...editData,
-                            soap_note: { ...editData.soap_note, [field]: e.target.value }
-                          })}
+                          onChange={(e) => {
+                            if (!editData) return;
+                            setEditData({
+                              ...editData,
+                              soap_note: { ...editData.soap_note, [field]: e.target.value }
+                            });
+                          }}
                           className="w-full p-4 bg-white rounded-xl border border-slate-300 text-slate-900 text-sm whitespace-pre-wrap leading-relaxed focus:outline-none focus:ring-2 focus:ring-teal-500 min-h-[100px]"
                         />
                       ) : (
                         <div className="p-4 bg-slate-50 rounded-xl border border-slate-100 text-slate-700 text-sm whitespace-pre-wrap leading-relaxed">
-                          {(soap_note as any)?.[field] || "—"}
+                          {(soap_note as unknown as Record<string, string | null>)?.[field] || "—"}
                         </div>
                       )}
                     </div>
@@ -243,7 +251,10 @@ export default function ConsultationReviewPage() {
                 </h2>
                 {isEditing && (
                   <button
-                    onClick={() => setEditData({ ...editData, diagnoses: [...editData.diagnoses, { icd_code: "", description: "" }] })}
+                    onClick={() => {
+                      if (!editData) return;
+                      setEditData({ ...editData, diagnoses: [...(editData.diagnoses || []), { icd_code: "", description: "" }] });
+                    }}
                     className="p-1.5 bg-indigo-50 text-indigo-600 hover:bg-indigo-100 rounded-lg transition-colors"
                   >
                     <Plus className="w-4 h-4" />
@@ -254,7 +265,7 @@ export default function ConsultationReviewPage() {
               {!isEditing ? (
                 diagnoses && diagnoses.length > 0 ? (
                   <ul className="space-y-3">
-                    {diagnoses.map((d: any) => (
+                    {diagnoses.map((d: Diagnosis) => (
                       <li key={d.id} className="p-3 bg-indigo-50/50 rounded-xl border border-indigo-100/50">
                         <div className="flex items-center gap-2 mb-1">
                           <span className="px-2 py-0.5 bg-indigo-100 text-indigo-700 rounded text-xs font-bold font-mono">
@@ -270,10 +281,11 @@ export default function ConsultationReviewPage() {
                 )
               ) : (
                 <ul className="space-y-3">
-                  {editData?.diagnoses.map((d: any, index: number) => (
+                  {editData?.diagnoses?.map((d: EditDiag, index: number) => (
                     <li key={index} className="p-3 bg-white rounded-xl border border-slate-200 relative group">
                       <button
                         onClick={() => {
+                          if (!editData || !editData.diagnoses) return;
                           const newDiags = [...editData.diagnoses];
                           newDiags.splice(index, 1);
                           setEditData({ ...editData, diagnoses: newDiags });
@@ -286,8 +298,9 @@ export default function ConsultationReviewPage() {
                         placeholder="ICD Code"
                         value={d.icd_code || ""}
                         onChange={(e) => {
+                          if (!editData || !editData.diagnoses) return;
                           const newDiags = [...editData.diagnoses];
-                          newDiags[index].icd_code = e.target.value;
+                          newDiags[index] = { ...newDiags[index], icd_code: e.target.value };
                           setEditData({ ...editData, diagnoses: newDiags });
                         }}
                         className="w-full mb-2 p-1.5 text-xs font-mono bg-slate-50 border border-slate-200 rounded"
@@ -296,15 +309,16 @@ export default function ConsultationReviewPage() {
                         placeholder="Description"
                         value={d.description || ""}
                         onChange={(e) => {
+                          if (!editData || !editData.diagnoses) return;
                           const newDiags = [...editData.diagnoses];
-                          newDiags[index].description = e.target.value;
+                          newDiags[index] = { ...newDiags[index], description: e.target.value };
                           setEditData({ ...editData, diagnoses: newDiags });
                         }}
                         className="w-full p-1.5 text-sm bg-slate-50 border border-slate-200 rounded"
                       />
                     </li>
                   ))}
-                  {editData?.diagnoses.length === 0 && <p className="text-sm text-slate-500 italic">No diagnoses.</p>}
+                  {editData?.diagnoses?.length === 0 && <p className="text-sm text-slate-500 italic">No diagnoses.</p>}
                 </ul>
               )}
             </div>
@@ -318,7 +332,10 @@ export default function ConsultationReviewPage() {
                 </h2>
                 {isEditing && (
                   <button
-                    onClick={() => setEditData({ ...editData, medications: [...editData.medications, { name: "", dosage: "", frequency: "", duration: "" }] })}
+                    onClick={() => {
+                      if (!editData) return;
+                      setEditData({ ...editData, medications: [...(editData.medications || []), { name: "", dosage: "", frequency: "", duration: "" }] });
+                    }}
                     className="p-1.5 bg-rose-50 text-rose-600 hover:bg-rose-100 rounded-lg transition-colors"
                   >
                     <Plus className="w-4 h-4" />
@@ -329,7 +346,7 @@ export default function ConsultationReviewPage() {
               {!isEditing ? (
                 medications && medications.length > 0 ? (
                   <ul className="space-y-3">
-                    {medications.map((m: any) => (
+                    {medications.map((m: Medication) => (
                       <li key={m.id} className="p-3 bg-rose-50/50 rounded-xl border border-rose-100/50">
                         <p className="text-sm font-bold text-slate-800 mb-1">{m.name}</p>
                         <div className="flex flex-wrap gap-2 text-xs text-slate-600">
@@ -345,10 +362,11 @@ export default function ConsultationReviewPage() {
                 )
               ) : (
                 <ul className="space-y-3">
-                  {editData?.medications.map((m: any, index: number) => (
+                  {editData?.medications?.map((m: EditMed, index: number) => (
                     <li key={index} className="p-3 bg-white rounded-xl border border-slate-200 relative group">
                       <button
                         onClick={() => {
+                          if (!editData || !editData.medications) return;
                           const newMeds = [...editData.medications];
                           newMeds.splice(index, 1);
                           setEditData({ ...editData, medications: newMeds });
@@ -361,8 +379,9 @@ export default function ConsultationReviewPage() {
                         placeholder="Medication Name"
                         value={m.name || ""}
                         onChange={(e) => {
+                          if (!editData || !editData.medications) return;
                           const newMeds = [...editData.medications];
-                          newMeds[index].name = e.target.value;
+                          newMeds[index] = { ...newMeds[index], name: e.target.value };
                           setEditData({ ...editData, medications: newMeds });
                         }}
                         className="w-full mb-2 p-1.5 pr-8 text-sm font-bold bg-slate-50 border border-slate-200 rounded"
@@ -372,8 +391,9 @@ export default function ConsultationReviewPage() {
                           placeholder="Dosage"
                           value={m.dosage || ""}
                           onChange={(e) => {
+                            if (!editData || !editData.medications) return;
                             const newMeds = [...editData.medications];
-                            newMeds[index].dosage = e.target.value;
+                            newMeds[index] = { ...newMeds[index], dosage: e.target.value };
                             setEditData({ ...editData, medications: newMeds });
                           }}
                           className="w-full p-1.5 text-xs bg-slate-50 border border-slate-200 rounded"
@@ -382,8 +402,9 @@ export default function ConsultationReviewPage() {
                           placeholder="Frequency"
                           value={m.frequency || ""}
                           onChange={(e) => {
+                            if (!editData || !editData.medications) return;
                             const newMeds = [...editData.medications];
-                            newMeds[index].frequency = e.target.value;
+                            newMeds[index] = { ...newMeds[index], frequency: e.target.value };
                             setEditData({ ...editData, medications: newMeds });
                           }}
                           className="w-full p-1.5 text-xs bg-slate-50 border border-slate-200 rounded"
@@ -392,8 +413,9 @@ export default function ConsultationReviewPage() {
                           placeholder="Duration"
                           value={m.duration || ""}
                           onChange={(e) => {
+                            if (!editData || !editData.medications) return;
                             const newMeds = [...editData.medications];
-                            newMeds[index].duration = e.target.value;
+                            newMeds[index] = { ...newMeds[index], duration: e.target.value };
                             setEditData({ ...editData, medications: newMeds });
                           }}
                           className="w-full p-1.5 text-xs bg-slate-50 border border-slate-200 rounded col-span-2"
@@ -401,7 +423,7 @@ export default function ConsultationReviewPage() {
                       </div>
                     </li>
                   ))}
-                  {editData?.medications.length === 0 && <p className="text-sm text-slate-500 italic">No medications.</p>}
+                  {editData?.medications?.length === 0 && <p className="text-sm text-slate-500 italic">No medications.</p>}
                 </ul>
               )}
             </div>
