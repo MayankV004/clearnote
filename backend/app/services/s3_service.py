@@ -40,10 +40,13 @@ class S3Service:
     # Key prefix for all audio files stored by this app
     AUDIO_PREFIX = "audio"
     AUDIO_CONTENT_TYPE = "audio/webm"
+    PDF_PREFIX = "prescriptions"
+    PDF_CONTENT_TYPE = "application/pdf"
 
     def __init__(self) -> None:
         self._client = None
-        self._bucket_verified = False
+        self._audio_bucket_verified = False
+        self._pdf_bucket_verified = False
 
     # ── Private helpers ──────────────────────────────────────────────────────
 
@@ -70,24 +73,27 @@ class S3Service:
     def _audio_key(self, consultation_id: str) -> str:
         return f"{self.AUDIO_PREFIX}/{consultation_id}.webm"
 
-    async def _ensure_bucket_exists(self) -> None:
-        """Create the audio bucket if it doesn't already exist (idempotent)."""
-        if self._bucket_verified:
+    def _pdf_key(self, consultation_id: str) -> str:
+        return f"{self.PDF_PREFIX}/{consultation_id}.pdf"
+
+    async def _ensure_bucket_exists(self, bucket_name: str, verified_flag_attr: str) -> None:
+        """Create the bucket if it doesn't already exist (idempotent)."""
+        if getattr(self, verified_flag_attr):
             return
 
         def _check_and_create():
             try:
-                self.client.head_bucket(Bucket=settings.AUDIO_BUCKET_NAME)
+                self.client.head_bucket(Bucket=bucket_name)
             except ClientError:
                 logger.info(
-                    f"S3Service: bucket '{settings.AUDIO_BUCKET_NAME}' not found — creating it."
+                    f"S3Service: bucket '{bucket_name}' not found — creating it."
                 )
-                self.client.create_bucket(Bucket=settings.AUDIO_BUCKET_NAME)
-                logger.info(f"S3Service: bucket '{settings.AUDIO_BUCKET_NAME}' created.")
+                self.client.create_bucket(Bucket=bucket_name)
+                logger.info(f"S3Service: bucket '{bucket_name}' created.")
 
         try:
             await run_in_threadpool(_check_and_create)
-            self._bucket_verified = True
+            setattr(self, verified_flag_attr, True)
         except (BotoCoreError, ClientError) as exc:
             logger.error(f"S3Service: could not ensure bucket exists – {exc}")
             raise
@@ -107,7 +113,7 @@ class S3Service:
         """
         key = self._audio_key(consultation_id)
 
-        await self._ensure_bucket_exists()
+        await self._ensure_bucket_exists(settings.AUDIO_BUCKET_NAME, "_audio_bucket_verified")
 
         logger.info(
             f"S3Service: uploading {len(audio_bytes):,} bytes → "
@@ -120,6 +126,40 @@ class S3Service:
                 Key=key,
                 Body=audio_bytes,
                 ContentType=self.AUDIO_CONTENT_TYPE,
+            )
+
+        try:
+            await run_in_threadpool(_upload)
+            logger.info(f"S3Service: upload complete – {key}")
+            return key
+        except (BotoCoreError, ClientError) as exc:
+            logger.error(
+                f"S3Service: upload failed for consultation {consultation_id} – {exc}"
+            )
+            raise
+
+    async def upload_pdf(self, pdf_bytes: bytes, consultation_id: str) -> str:
+        """
+        Upload generated PDF bytes to the configured S3 bucket.
+
+        Returns:
+            The S3 key (e.g. "prescriptions/<consultation_id>.pdf") on success.
+        """
+        key = self._pdf_key(consultation_id)
+
+        await self._ensure_bucket_exists(settings.PDF_BUCKET_NAME, "_pdf_bucket_verified")
+
+        logger.info(
+            f"S3Service: uploading {len(pdf_bytes):,} bytes → "
+            f"s3://{settings.PDF_BUCKET_NAME}/{key}"
+        )
+
+        def _upload():
+            self.client.put_object(
+                Bucket=settings.PDF_BUCKET_NAME,
+                Key=key,
+                Body=pdf_bytes,
+                ContentType=self.PDF_CONTENT_TYPE,
             )
 
         try:
@@ -188,23 +228,25 @@ class S3Service:
             logger.warning(f"S3Service: could not delete {s3_key} – {exc}")
 
     async def generate_presigned_url(
-        self, s3_key: str, expires_in: int = 3600
+        self, s3_key: str, expires_in: int = 3600, bucket_name: str = None
     ) -> str:
         """
         Generate a pre-signed GET URL so the frontend can download/playback
-        audio directly from S3 without proxying through the backend.
+        audio or pdf directly from S3 without proxying through the backend.
 
         Args:
             s3_key:     The S3 object key.
             expires_in: URL lifetime in seconds (default 1 hour).
+            bucket_name: Optional bucket name to override default audio bucket.
 
         Returns:
             A pre-signed HTTPS URL string.
         """
+        target_bucket = bucket_name or settings.AUDIO_BUCKET_NAME
         def _presign():
             return self.client.generate_presigned_url(
                 "get_object",
-                Params={"Bucket": settings.AUDIO_BUCKET_NAME, "Key": s3_key},
+                Params={"Bucket": target_bucket, "Key": s3_key},
                 ExpiresIn=expires_in,
             )
 

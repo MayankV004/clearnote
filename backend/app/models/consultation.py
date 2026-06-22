@@ -23,6 +23,7 @@ class Consultation(Base):
     transcription_job_id = Column(String, nullable=True)
     duration_seconds = Column(Integer, nullable=True)
     processing_error = Column(String, nullable=True)
+    prescription_s3_key = Column(String, nullable=True)
     
     created_at = Column(DateTime(timezone=True), server_default=func.now())
     deleted_at = Column(DateTime(timezone=True), nullable=True)
