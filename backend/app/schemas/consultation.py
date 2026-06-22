@@ -51,3 +51,27 @@ class ConsultationResponse(BaseModel):
     medications: List[MedicationResponse] = []
     diagnoses: List[DiagnosisResponse] = []
     model_config = ConfigDict(from_attributes=True)
+
+class MedicationUpdate(BaseModel):
+    id:Optional[UUID]=None
+    name:str
+    dosage:Optional[str]=None
+    frequency:Optional[str]=None
+    duration:Optional[str]=None
+    route:Optional[str]=None
+
+class DiagnosisUpdate(BaseModel):
+    id:Optional[UUID]=None
+    icd_code:Optional[str]=None
+    description:str
+
+class SOAPNoteUpdate(BaseModel):
+    subjective:Optional[str]=None
+    objective:Optional[str]=None
+    assessment:Optional[str]=None
+    plan:Optional[str]=None
+
+class ConsultationUpdate(BaseModel):
+    soap_note:Optional[SOAPNoteUpdate]=None
+    medications:Optional[List[MedicationUpdate]]=None
+    diagnoses:Optional[List[DiagnosisUpdate]]=None    

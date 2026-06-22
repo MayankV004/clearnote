@@ -8,8 +8,12 @@ from sqlalchemy.orm import selectinload
 from app.core.logger import logger
 from app.core.exceptions import ConsultationNotFoundException, PatientNotOwnedException
 from app.models.consultation import Consultation, ConsultationStatus
+from app.schemas.consultation import ConsultationUpdate
 from app.models.patient import Patient
 from app.models.soap_note import SOAPNote
+
+from app.models.medication import Medication
+from app.models.diagnosis import Diagnosis
 
 
 class ConsultationService:
@@ -105,6 +109,90 @@ class ConsultationService:
             consultation_id=str(consultation.id),
             s3_key=s3_key,
         )
+
+    @staticmethod
+    async def update_consultation_details(
+        db:AsyncSession,doctor_id,consultation_id,update_data:ConsultationUpdate)->Consultation:
+             #fetch consulatation with relations
+            stmt=select(Consultation).where(
+        Consultation.id==consultation_id,
+        Consultation.doctor_id==doctor_id
+    ).options(
+        selectinload(Consultation.soap_note),
+        selectinload(Consultation.medications),
+        selectinload(Consultation.diagnoses)
+    )
+            consultation=await db.scalar(stmt)
+            if not consultation:
+                raise ConsultationNotFoundException()
+            #update soap note
+            if update_data.soap_note and consultation.soap_note:
+                note_data=update_data.soap_note
+                if note_data.subjective is not None:  consultation.soap_note.subjective=note_data.subjective
+                if note_data.objective is not None: consultation.soap_note.objective = note_data.objective
+                if note_data.assessment is not None: consultation.soap_note.assessment = note_data.assessment
+                if note_data.plan is not None: consultation.soap_note.plan = note_data.plan
+            consultation.soap_note.edited_by_doctor = True
+
+            #update medication
+            if update_data.medications is not None:
+                kep_med_ids=[m.id for m in update_data.medications if m.id]
+
+                for existing_med in consultation.medications:
+                    if existing_med.id not in kep_med_ids:
+                        await db.delete(existing_med)
+                existing_meds_map={m.id:m for m in consultation.medications}
+                for med_data in update_data.medications:
+                    if med_data.id and med_data.id in existing_meds_map:
+                        med=existing_meds_map[med_data.id]
+                        med.name=med_data.name
+                        med.dosage=med_data.dosage
+                        med.frequency = med_data.frequency
+                        med.duration = med_data.duration
+                        med.route = med_data.route
+                    else:
+                        new_med = Medication(
+                        consultation_id=consultation.id,
+                        name=med_data.name,
+                        dosage=med_data.dosage,
+                        frequency=med_data.frequency,
+                        duration=med_data.duration,
+                        route=med_data.route
+                    )
+                        db.add(new_med)
+
+            #update diagnoses        
+            if update_data.diagnoses is not None:
+                kept_diag_ids = [d.id for d in update_data.diagnoses if d.id]
+            
+                # Delete removed diagnoses
+                for existing_diag in consultation.diagnoses:
+                    if existing_diag.id not in kept_diag_ids:
+                      await db.delete(existing_diag)
+                    
+                existing_diags_map = {d.id: d for d in consultation.diagnoses}
+            
+                # Update existing or add new diagnoses
+                for diag_data in update_data.diagnoses:
+                    if diag_data.id and diag_data.id in existing_diags_map:
+                       diag = existing_diags_map[diag_data.id]
+                       diag.icd_code = diag_data.icd_code
+                       diag.description = diag_data.description
+                    else:
+                       new_diag = Diagnosis(
+                        consultation_id=consultation.id,
+                        icd_code=diag_data.icd_code,
+                        description=diag_data.description
+                    )
+                       db.add(new_diag)
+
+            await db.commit() 
+            await db.refresh(consultation)
+            return consultation      
+
+
+
+
 
 
 # ── Background Task (Runs outside the HTTP Request Lifecycle) ─────────────

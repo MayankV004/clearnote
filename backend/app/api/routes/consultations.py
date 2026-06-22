@@ -1,3 +1,4 @@
+
 from typing import List
 from uuid import UUID
 
@@ -11,7 +12,7 @@ from app.core.exceptions import ConsultationNotFoundException, PatientNotOwnedEx
 from app.core.logger import logger
 from app.models.consultation import Consultation, ConsultationStatus
 from app.models.doctor import Doctor
-from app.schemas.consultation import ConsultationCreate, ConsultationResponse
+from app.schemas.consultation import ConsultationCreate, ConsultationResponse, ConsultationUpdate
 from app.services.consultation_service import ConsultationService
 from app.services.pdf_service import pdf_service
 from app.services.s3_service import s3_service
@@ -56,6 +57,19 @@ async def get_consultation(
     """
     return await ConsultationService.get_consultation_by_id(db, doctor.id, consultation_id)
 
+@router.patch("/{consultation_id}",response_model=ConsultationResponse)
+async def update_consultation_details(
+    consultation_id:UUID,
+    body:ConsultationUpdate,
+    doctor:Doctor=Depends(get_current_doctor),
+    db:AsyncSession=Depends(get_db),
+):
+    return await ConsultationService.update_consultation_details(
+        db=db,
+        doctor_id=doctor.id,
+        consultation_id=consultation_id,
+        update_data=body
+    )
 
 @router.websocket("/{consultation_id}/stream")
 async def audio_stream(
