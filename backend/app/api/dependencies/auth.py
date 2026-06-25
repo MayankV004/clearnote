@@ -61,8 +61,28 @@ async def get_current_user(request: Request) -> RequestState:
 CurrentUser = Annotated[RequestState, Depends(get_current_user)]
 
 async def get_current_doctor(state: CurrentUser, db: AsyncSession = Depends(get_db)) -> Doctor:
-    """Helper to lookup internal Doctor UUID from Clerk user_id."""
+    """
+    Resolve the internal Doctor record from the Clerk JWT sub claim.
+
+    The doctor object is cached in Redis by clerk_user_id to avoid a
+    DB round-trip on every authenticated request.
+    """
+    from app.services.cache_service import cache, key_doctor, TTL_DOCTOR
+    from app.schemas.doctor import DoctorResponse
+
     clerk_user_id = state.payload["sub"]
+    cache_key = key_doctor(clerk_user_id)
+
+    # ── Cache read ───────────────────────────────────────────────────────────
+    cached = await cache.get(cache_key)
+    if cached is not None:
+        # Return Pydantic model directly — Doctor(**cached) breaks because JSON
+        # deserialises datetime fields as strings, not datetime objects.
+        # DoctorResponse has all attrs (.id, .clerk_user_id, .is_onboarded) that
+        # downstream service methods access.
+        return DoctorResponse.model_validate(cached)
+
+    # ── Cache miss → DB ──────────────────────────────────────────────────────
     stmt = select(Doctor).where(Doctor.clerk_user_id == clerk_user_id)
     doctor = await db.scalar(stmt)
     if not doctor:
@@ -70,5 +90,12 @@ async def get_current_doctor(state: CurrentUser, db: AsyncSession = Depends(get_
             status_code=status.HTTP_404_NOT_FOUND,
             detail="Doctor profile not found in database. Make sure you signed up correctly."
         )
-    return doctor
 
+    # Serialise via Pydantic schema and write to cache
+    try:
+        doctor_dict = DoctorResponse.model_validate(doctor).model_dump(mode="json")
+        await cache.set(cache_key, doctor_dict, TTL_DOCTOR)
+    except Exception as exc:
+        logger.warning(f"Could not cache doctor {clerk_user_id}: {exc}")
+
+    return doctor

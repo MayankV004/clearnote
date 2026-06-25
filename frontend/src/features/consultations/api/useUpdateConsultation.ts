@@ -3,6 +3,7 @@
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { useApiClient } from "@/lib/api-client";
 import type { Consultation } from "../types";
+import { toast } from "sonner";
 
 export interface ConsultationUpdatePayload {
   soap_note?: {
@@ -40,6 +41,10 @@ export function useUpdateConsultation(consultationId: string) {
       });
       // Optionally update the cache directly for snappier UI
       queryClient.setQueryData(["consultation", consultationId], updatedConsultation);
+      toast.success("Consultation updated successfully.");
+    },
+    onError: (err: Error) => {
+      toast.error(err.message || "Failed to save changes. Please try again.");
     },
   });
 }

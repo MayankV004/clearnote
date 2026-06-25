@@ -5,6 +5,7 @@ from sqlalchemy.future import select
 from app.models.doctor import Doctor
 from app.core.exceptions import DoctorNotFoundException , DoctorAlreadyOnboardedException
 from app.core.logger import logger
+from app.services.cache_service import cache, key_doctor
 
 class DoctorService:
     @staticmethod
@@ -48,9 +49,12 @@ class DoctorService:
 
         await db.commit()
         await db.refresh(doctor)
-        
+
+        # ── Invalidate cached doctor profile so next request fetches fresh data
+        await cache.delete(key_doctor(doctor.clerk_user_id))
+
         logger.info(f"Successfully onboarded doctor: {doctor.email} | Clinic: {data.clinic_name}")
-        
+
         return doctor
 
 

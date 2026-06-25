@@ -5,6 +5,7 @@ import { Mic, Square, Loader2, AlertCircle, CheckCircle2 } from "lucide-react";
 import { useAudioRecorder } from "../hooks/useAudioRecorder";
 import { useConsultation } from "../api/useConsultation";
 import { useQueryClient } from "@tanstack/react-query";
+import { toast } from "sonner";
 
 interface Props {
   isOpen: boolean;
@@ -37,8 +38,15 @@ export function AudioRecorderModal({ isOpen, onClose, patientId }: Props) {
     if (status === "processing" && consultation) {
       if (consultation.status === "COMPLETE") {
         setStatus("complete");
+        toast.success("Transcription complete! SOAP note is ready.", {
+          duration: 5000,
+        });
       } else if (consultation.status === "FAILED") {
         setStatus("error");
+        toast.error(
+          consultation.processing_error || "Transcription failed. Please try again.",
+          { duration: 6000 }
+        );
       }
     }
   }, [consultation, status, setStatus]);

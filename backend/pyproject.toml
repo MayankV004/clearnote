@@ -21,6 +21,7 @@ dependencies = [
     "python-jose[cryptography]>=3.5.0",
     "sqlalchemy[asyncio]>=2.0.50",
     "svix>=1.95.1",
+    "upstash-redis>=1.7.0",
     "uvicorn[standard]>=0.48.0",
     "weasyprint>=69.0",
 ]

@@ -8,12 +8,19 @@ from sqlalchemy.orm import selectinload
 from app.core.logger import logger
 from app.core.exceptions import ConsultationNotFoundException, PatientNotOwnedException
 from app.models.consultation import Consultation, ConsultationStatus
-from app.schemas.consultation import ConsultationUpdate
+from app.schemas.consultation import ConsultationUpdate, ConsultationResponse
 from app.models.patient import Patient
 from app.models.soap_note import SOAPNote
 
 from app.models.medication import Medication
 from app.models.diagnosis import Diagnosis
+from app.services.cache_service import (
+    cache,
+    key_consultations_list,
+    key_consultation,
+    TTL_CONSULTATIONS,
+    TTL_CONSULTATION,
+)
 
 
 class ConsultationService:
@@ -41,7 +48,7 @@ class ConsultationService:
         )
         db.add(consultation)
         await db.commit()
-        
+
         # Re-fetch to ensure relationships (like soap_note) are eager loaded
         stmt = select(Consultation).where(Consultation.id == consultation.id).options(
             selectinload(Consultation.medications),
@@ -50,12 +57,27 @@ class ConsultationService:
         consultation = await db.scalar(stmt)
 
         logger.info(f"Created consultation {consultation.id} for patient {patient_id}")
+
+        # ── Invalidate the consultations list for this patient ─────────────────
+        await cache.delete(key_consultations_list(str(doctor_id), str(patient_id)))
+
         return consultation
 
     @staticmethod
     async def get_consultations_for_patient(
         db: AsyncSession, doctor_id, patient_id
     ) -> List[Consultation]:
+        ck = key_consultations_list(str(doctor_id), str(patient_id))
+
+        # ── Cache read ────────────────────────────────────────────────────────
+        cached = await cache.get(ck)
+        if cached is not None:
+            logger.debug(f"Cache HIT: {ck}")
+            # Return Pydantic models directly — ORM reconstruction breaks on nested
+            # relationship fields (soap_note, medications, diagnoses).
+            return [ConsultationResponse.model_validate(c) for c in cached]
+
+        # ── DB ────────────────────────────────────────────────────────────────
         stmt = select(Consultation).where(
             Consultation.patient_id == patient_id,
             Consultation.doctor_id == doctor_id,
@@ -66,12 +88,27 @@ class ConsultationService:
         )
 
         result = await db.execute(stmt)
-        return result.scalars().all()
+        consultations = result.scalars().all()
+
+        # ── Write cache ───────────────────────────────────────────────────────
+        serialised = [ConsultationResponse.model_validate(c).model_dump(mode="json") for c in consultations]
+        await cache.set(ck, serialised, TTL_CONSULTATIONS)
+
+        return consultations
 
     @staticmethod
     async def get_consultation_by_id(
         db: AsyncSession, doctor_id, consultation_id
     ) -> Consultation:
+        ck = key_consultation(str(doctor_id), str(consultation_id))
+
+        # ── Cache read ────────────────────────────────────────────────────────
+        cached = await cache.get(ck)
+        if cached is not None:
+            logger.debug(f"Cache HIT: {ck}")
+            return ConsultationResponse.model_validate(cached)
+
+        # ── DB ────────────────────────────────────────────────────────────────
         stmt = select(Consultation).where(
             Consultation.id == consultation_id,
             Consultation.doctor_id == doctor_id,
@@ -82,6 +119,14 @@ class ConsultationService:
         consultation = await db.scalar(stmt)
         if not consultation:
             raise ConsultationNotFoundException()
+
+        # ── Write cache ───────────────────────────────────────────────────────
+        await cache.set(
+            ck,
+            ConsultationResponse.model_validate(consultation).model_dump(mode="json"),
+            TTL_CONSULTATION,
+        )
+
         return consultation
 
     @staticmethod
@@ -186,9 +231,16 @@ class ConsultationService:
                     )
                        db.add(new_diag)
 
-            await db.commit() 
+            await db.commit()
             await db.refresh(consultation)
-            return consultation      
+
+            # ── Invalidate single + list cache ────────────────────────────────
+            await cache.delete(
+                key_consultation(str(doctor_id), str(consultation_id)),
+                key_consultations_list(str(doctor_id), str(consultation.patient_id)),
+            )
+
+            return consultation
 
 
 
@@ -286,6 +338,23 @@ async def _run_transcription(consultation_id: str, s3_key: str) -> None:
                 f"Consultation {consultation_id}: pipeline complete — status=COMPLETE."
             )
 
+            # ── Invalidate cache so next poll returns fresh COMPLETE data ──────
+            # We don't have doctor_id here, so we build a partial key to
+            # match `consultation:{doctor_id}:{consultation_id}`. Since we
+            # can't wildcard without SCAN, we store an extra reverse-lookup
+            # key on the consultation itself. Simpler: just use the known
+            # doctor_id from the consultation object.
+            try:
+                doctor_id_str = str(consultation.doctor_id)
+                patient_id_str = str(consultation.patient_id)
+                await cache.delete(
+                    key_consultation(doctor_id_str, consultation_id),
+                    key_consultations_list(doctor_id_str, patient_id_str),
+                )
+                logger.debug(f"Cache invalidated for consultation {consultation_id} after COMPLETE.")
+            except Exception as cache_exc:
+                logger.warning(f"Cache invalidation failed after COMPLETE: {cache_exc}")
+
         except Exception as exc:
             logger.error(f"Transcription pipeline failed for {consultation_id}: {exc}", exc_info=True)
             failed = True
@@ -302,6 +371,18 @@ async def _run_transcription(consultation_id: str, s3_key: str) -> None:
                     consultation.processing_error = error_message
                     await db.commit()
                     logger.info(f"Consultation {consultation_id}: status set to FAILED.")
+
+                    # ── Invalidate cache on failure too ───────────────────────
+                    try:
+                        doctor_id_str = str(consultation.doctor_id)
+                        patient_id_str = str(consultation.patient_id)
+                        await cache.delete(
+                            key_consultation(doctor_id_str, consultation_id),
+                            key_consultations_list(doctor_id_str, patient_id_str),
+                        )
+                    except Exception as cache_exc:
+                        logger.warning(f"Cache invalidation failed after FAILED: {cache_exc}")
+
                 except Exception as commit_exc:
                     logger.error(
                         f"Could not save FAILED status for {consultation_id}: {commit_exc}"

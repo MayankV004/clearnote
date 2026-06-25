@@ -19,6 +19,7 @@ import {
 import { useAuth, useUser } from "@clerk/nextjs";
 import { useRouter } from "next/navigation";
 import { doctorOnboardingSchema, type DoctorOnboardingFormValues } from "@/features/doctor/validations";
+import { toast } from "sonner";
 
 const STEPS = [
   {
@@ -80,7 +81,6 @@ const inputClass =
 export default function OnboardingPage() {
   const [currentStep, setCurrentStep] = useState(1);
   const [isSubmitting, setIsSubmitting] = useState(false);
-  const [serverError, setServerError] = useState("");
 
   const { user } = useUser();
   const { getToken } = useAuth();
@@ -118,7 +118,6 @@ export default function OnboardingPage() {
 
   const onSubmit = async (data: DoctorOnboardingFormValues) => {
     setIsSubmitting(true);
-    setServerError("");
     try {
       const token = await getToken();
       const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/doctors/onboarding`, {
@@ -133,9 +132,10 @@ export default function OnboardingPage() {
         const err = await res.json();
         throw new Error(err.detail || "Submission failed. Please try again.");
       }
+      toast.success("Profile complete! Welcome to ClearNote.");
       router.replace("/dashboard");
     } catch (e: unknown) {
-      setServerError(e instanceof Error ? e.message : "An unexpected error occurred.");
+      toast.error(e instanceof Error ? e.message : "An unexpected error occurred.");
     } finally {
       setIsSubmitting(false);
     }
@@ -281,13 +281,6 @@ export default function OnboardingPage() {
                 transition={{ duration: 0.5, ease: "easeInOut" }}
               />
             </div>
-
-            {/* Server Error */}
-            {serverError && (
-              <div className="mb-6 p-4 rounded-xl bg-red-50 border border-red-200 text-red-600 text-sm">
-                {serverError}
-              </div>
-            )}
 
             {/* Form */}
             <form onSubmit={handleSubmit(onSubmit)}>

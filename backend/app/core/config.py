@@ -16,6 +16,8 @@ class Settings(BaseSettings):
     AWS_ENDPOINT_URL: str = "http://localhost:4566"
     AUDIO_BUCKET_NAME: str = "clearnote-audio"
     PDF_BUCKET_NAME: str = "clearnote-pdfs"
+    UPSTASH_REDIS_REST_URL: str = ""
+    UPSTASH_REDIS_REST_TOKEN: str = ""
 
     class Config:
         env_file = ".env"
