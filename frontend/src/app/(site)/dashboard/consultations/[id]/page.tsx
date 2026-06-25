@@ -8,6 +8,7 @@ import { useGeneratePrescription, usePrescription } from "@/features/consultatio
 import { useUpdateConsultation, ConsultationUpdatePayload } from "@/features/consultations/api/useUpdateConsultation";
 import type { Diagnosis, Medication } from "@/features/consultations/types";
 import { formatDate } from "@/lib/utils";
+import { toast } from "sonner";
 
 // Define the exact item types expected in the update payload to avoid 'any'
 type EditDiag = NonNullable<ConsultationUpdatePayload["diagnoses"]>[0];
@@ -46,8 +47,10 @@ export default function ConsultationReviewPage() {
     try {
       await generateMutation.mutateAsync(id);
       refetchPrescription();
+      toast.success("Prescription generated successfully!");
     } catch (error) {
-      console.error("Failed to generate prescription:", error);
+      const msg = error instanceof Error ? error.message : "Failed to generate prescription.";
+      toast.error(msg);
     }
   };
 
@@ -60,8 +63,8 @@ export default function ConsultationReviewPage() {
         diagnoses: editData.diagnoses,
       });
       setIsEditing(false);
-    } catch (error) {
-      console.error("Failed to save updates:", error);
+    } catch {
+      // Error toast is already fired by useUpdateConsultation's onError
     }
   };
 
