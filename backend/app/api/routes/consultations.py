@@ -1,7 +1,7 @@
 
 from typing import List
 from uuid import UUID
-
+from pydantic import BaseModel
 from fastapi import APIRouter, Depends, WebSocket, WebSocketDisconnect, BackgroundTasks, status
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.future import select
@@ -18,9 +18,14 @@ from app.services.pdf_service import pdf_service
 from app.services.s3_service import s3_service
 from app.core.config import settings
 from fastapi.responses import JSONResponse
+from app.services.rag_service import rag_service
 
 router = APIRouter(prefix="/consultations", tags=["consultations"])
 
+
+class IngestRequest(BaseModel):
+    url: str
+    source_name: str
 
 @router.post("/", response_model=ConsultationResponse, status_code=status.HTTP_201_CREATED)
 async def create_consultation(
@@ -180,3 +185,14 @@ async def get_prescription(
 
     presigned_url = await s3_service.generate_presigned_url(consultation.prescription_s3_key, bucket_name=settings.PDF_BUCKET_NAME)
     return {"url": presigned_url}
+
+
+@router.post("/ingest-guidelines")
+async def ingest_guidelines_endpoint(
+    request:IngestRequest,
+    db:AsyncSession=Depends(get_db),
+    doctor=Depends(get_current_doctor)):
+    count=await rag_service.ingest_guidelines(request.url,request.source_name,db)
+    return {"status":"success","chunks_ingested":count}
+
+

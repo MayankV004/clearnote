@@ -18,6 +18,7 @@ class Settings(BaseSettings):
     PDF_BUCKET_NAME: str = "clearnote-pdfs"
     UPSTASH_REDIS_REST_URL: str = ""
     UPSTASH_REDIS_REST_TOKEN: str = ""
+    GEMINI_API_KEY: str = ""
 
     class Config:
         env_file = ".env"

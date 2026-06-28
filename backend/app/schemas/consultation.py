@@ -38,6 +38,17 @@ class SOAPNoteResponse(BaseModel):
 class ConsultationCreate(BaseModel):
     patient_id: UUID     # the only thing the frontend needs to send
 
+class InteractionResponse(BaseModel):
+    id:UUID
+    drug_a:str
+    drug_b:str
+    severity:str
+    guideline_ref:Optional[str]=None
+    mechanism:Optional[str]=None
+    recommendation:Optional[str]=None
+    confidence:Optional[float]=None
+    model_config=ConfigDict(from_attributes=True)    
+
 class ConsultationResponse(BaseModel):
     id: UUID
     patient_id: UUID
@@ -49,6 +60,7 @@ class ConsultationResponse(BaseModel):
     created_at: datetime
     soap_note: Optional[SOAPNoteResponse] = None   # None until transcription completes
     medications: List[MedicationResponse] = []
+    interactions:List[InteractionResponse]=[]
     diagnoses: List[DiagnosisResponse] = []
     model_config = ConfigDict(from_attributes=True)
 
