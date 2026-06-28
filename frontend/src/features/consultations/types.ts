@@ -26,6 +26,17 @@ export interface SOAPNote {
   edited_by_doctor: boolean;
 }
 
+export interface Interaction {
+  id: string;
+  drug_a: string;
+  drug_b: string;
+  severity: string;
+  guideline_ref: string | null;
+  mechanism: string | null;
+  recommendation: string | null;
+  confidence: number | null;
+}
+
 export interface Consultation {
   id: string;
   patient_id: string;
@@ -38,6 +49,7 @@ export interface Consultation {
   soap_note: SOAPNote | null;
   medications: Medication[];
   diagnoses: Diagnosis[];
+  interactions: Interaction[];
 }
 
 export interface CreateConsultationPayload {

@@ -22,6 +22,8 @@ from app.services.cache_service import (
     TTL_CONSULTATION,
 )
 
+from app.services.rag_service import rag_service
+
 
 class ConsultationService:
 
@@ -52,7 +54,8 @@ class ConsultationService:
         # Re-fetch to ensure relationships (like soap_note) are eager loaded
         stmt = select(Consultation).where(Consultation.id == consultation.id).options(
             selectinload(Consultation.medications),
-            selectinload(Consultation.diagnoses)
+            selectinload(Consultation.diagnoses),
+            selectinload(Consultation.interactions)
         )
         consultation = await db.scalar(stmt)
 
@@ -84,7 +87,8 @@ class ConsultationService:
             Consultation.deleted_at.is_(None),
         ).order_by(Consultation.created_at.desc()).options(
             selectinload(Consultation.medications),
-            selectinload(Consultation.diagnoses)
+            selectinload(Consultation.diagnoses),
+            selectinload(Consultation.interactions)
         )
 
         result = await db.execute(stmt)
@@ -114,7 +118,8 @@ class ConsultationService:
             Consultation.doctor_id == doctor_id,
         ).options(
             selectinload(Consultation.medications),
-            selectinload(Consultation.diagnoses)
+            selectinload(Consultation.diagnoses),
+            selectinload(Consultation.interactions)
         )
         consultation = await db.scalar(stmt)
         if not consultation:
@@ -165,7 +170,8 @@ class ConsultationService:
     ).options(
         selectinload(Consultation.soap_note),
         selectinload(Consultation.medications),
-        selectinload(Consultation.diagnoses)
+        selectinload(Consultation.diagnoses),
+        selectinload(Consultation.interactions)
     )
             consultation=await db.scalar(stmt)
             if not consultation:
@@ -177,7 +183,8 @@ class ConsultationService:
                 if note_data.objective is not None: consultation.soap_note.objective = note_data.objective
                 if note_data.assessment is not None: consultation.soap_note.assessment = note_data.assessment
                 if note_data.plan is not None: consultation.soap_note.plan = note_data.plan
-            consultation.soap_note.edited_by_doctor = True
+            if consultation.soap_note:
+                consultation.soap_note.edited_by_doctor = True
 
             #update medication
             if update_data.medications is not None:
@@ -232,7 +239,37 @@ class ConsultationService:
                        db.add(new_diag)
 
             await db.commit()
-            await db.refresh(consultation)
+            
+            # Re-fetch consultation so newly added medications/diagnoses are loaded in consultation.medications
+            stmt = select(Consultation).where(Consultation.id == consultation_id, Consultation.doctor_id == doctor_id).options(
+                selectinload(Consultation.soap_note),
+                selectinload(Consultation.medications),
+                selectinload(Consultation.diagnoses),
+                selectinload(Consultation.interactions)
+            )
+            consultation = await db.scalar(stmt)
+
+            # If medications or diagnoses were updated, delete old interactions and re-run RAG check
+            if update_data.medications is not None or update_data.diagnoses is not None:
+                for existing_interaction in list(consultation.interactions):
+                    await db.delete(existing_interaction)
+                await db.commit()
+                
+                await rag_service.check_drug_interactions(
+                    consultation_id=str(consultation.id),
+                    medications=consultation.medications,
+                    diagnoses=consultation.diagnoses,
+                    db=db
+                )
+                await db.commit()
+
+            stmt = select(Consultation).where(Consultation.id == consultation_id, Consultation.doctor_id == doctor_id).options(
+                selectinload(Consultation.soap_note),
+                selectinload(Consultation.medications),
+                selectinload(Consultation.diagnoses),
+                selectinload(Consultation.interactions)
+            )
+            consultation = await db.scalar(stmt)
 
             # ── Invalidate single + list cache ────────────────────────────────
             await cache.delete(
@@ -329,6 +366,14 @@ async def _run_transcription(consultation_id: str, s3_key: str) -> None:
                     icd_code=diag.icd_code,
                     description=diag.description,
                 ))
+            # Run RAG drug interaction checks
+            await rag_service.check_drug_interactions(
+                 consultation_id=consultation_id,
+                 medications=structured_data.medications,
+                 diagnoses=structured_data.diagnoses,
+                 db=db
+                )
+    
 
             # 8. Mark COMPLETE — the consultation is refreshed so this is safe
             consultation.status = ConsultationStatus.COMPLETE
