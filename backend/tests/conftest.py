@@ -73,6 +73,14 @@ def _patch_postgres_types():
     import app.models.soap_note       # noqa: F401
     import app.models.medication      # noqa: F401
     import app.models.diagnosis       # noqa: F401
+    import app.models.interaction     # noqa: F401
+    import app.models.guideline_chunk # noqa: F401
+
+    try:
+        from pgvector.sqlalchemy import Vector as PGVector
+        _has_pgvector = True
+    except ImportError:
+        _has_pgvector = False
 
     for table in Base.metadata.tables.values():
         for column in table.columns:
@@ -80,6 +88,10 @@ def _patch_postgres_types():
                 column.type = JSON()
             elif isinstance(column.type, PG_UUID):
                 column.type = SQLiteUUID()
+            elif _has_pgvector and isinstance(column.type, PGVector):
+                # Store vectors as JSON arrays in SQLite — purely for table creation;
+                # vector similarity queries are mocked in tests.
+                column.type = JSON()
 
 
 # Patch types once at import time so they're ready before any fixture runs
