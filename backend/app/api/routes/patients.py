@@ -8,7 +8,7 @@ from app.api.dependencies.db import get_db
 from app.api.dependencies.auth import CurrentUser
 from app.models.doctor import Doctor
 from app.models.patient import Patient
-from app.schemas.patient import PatientCreate, PatientResponse
+from app.schemas.patient import PatientCreate, PatientResponse, PatientUpdate
 from app.api.dependencies.auth import get_current_doctor
 from app.core.exceptions import PatientNotFoundException
 
@@ -44,3 +44,16 @@ async def create_patient(
 ):
     """Create a new patient record."""
     return await PatientService.create_patient(db, doctor.id, patient_in)
+
+@router.patch("/{patient_id}", response_model=PatientResponse)
+async def update_patient(
+    patient_id: UUID,
+    patient_in: PatientUpdate,
+    doctor: Doctor = Depends(get_current_doctor),
+    db: AsyncSession = Depends(get_db)
+):
+    """Update a patient's details."""
+    try:
+        return await PatientService.update_patient(db, doctor.id, str(patient_id), patient_in)
+    except PatientNotFoundException:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Patient not found")

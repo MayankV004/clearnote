@@ -12,6 +12,9 @@ export interface Patient {
   email: string | null;
   phone: string | null;
   dob: string | null;
+  age: number | null;
+  height: string | null;
+  weight: string | null;
   created_at: string;
   updated_at: string;
   consent_given_at: string | null;
@@ -23,4 +26,19 @@ export interface CreatePatientPayload {
   email: string | null;
   phone: string | null;
   dob: string | null;
+  age?: number | null;
+  height?: string | null;
+  weight?: string | null;
+}
+
+export interface UpdatePatientPayload {
+  name?: string;
+  email?: string | null;
+  phone?: string | null;
+  dob?: string | null;
+  age?: number | null;
+  height?: string | null;
+  weight?: string | null;
+  consent_given_at?: string | null;
+  consent_version?: string | null;
 }

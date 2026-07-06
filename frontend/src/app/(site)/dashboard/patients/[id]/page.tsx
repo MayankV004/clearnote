@@ -11,6 +11,10 @@ import {
   Stethoscope,
   FileText,
   Loader2,
+  Pencil,
+  CheckCircle,
+  Ruler,
+  Activity,
 } from "lucide-react";
 import Link from "next/link";
 
@@ -19,6 +23,8 @@ import { ConsultationList } from "@/features/consultations/components/Consultati
 import { AudioRecorderModal } from "@/features/consultations/components/AudioRecorderModal";
 import { formatDate, calculateAge, getInitials } from "@/lib/utils";
 import { useState } from "react";
+import UpdatePatientModal from "@/features/patients/components/UpdatePatientModal";
+import { useUpdatePatient } from "@/features/patients/api/useUpdatePatient";
 
 // ─── Sub-components ───────────────────────────────────────────────────────────
 
@@ -50,6 +56,8 @@ export default function PatientProfilePage() {
   const { id } = useParams<{ id: string }>();
   const router = useRouter();
   const [isRecordingModalOpen, setIsRecordingModalOpen] = useState(false);
+  const [isUpdateModalOpen, setIsUpdateModalOpen] = useState(false);
+  const { mutateAsync: updatePatient, isPending: isUpdatingConsent } = useUpdatePatient();
 
   const { data: patient, isLoading, isError, error } = usePatient(id);
 
@@ -79,6 +87,20 @@ export default function PatientProfilePage() {
 
   const initials = getInitials(patient.name);
 
+  const handleRecordConsent = async () => {
+    try {
+      await updatePatient({
+        patientId: patient.id,
+        payload: {
+          consent_given_at: new Date().toISOString(),
+          consent_version: "v1.0"
+        }
+      });
+    } catch {
+      // Error handled by mutation
+    }
+  };
+
   return (
     <div className="min-h-screen bg-white text-slate-900 selection:bg-teal-500/30">
       {/* Sticky Top Bar */}
@@ -98,6 +120,13 @@ export default function PatientProfilePage() {
           </div>
 
           <div className="flex items-center gap-3">
+            <button
+              onClick={() => setIsUpdateModalOpen(true)}
+              className="inline-flex items-center gap-2 px-4 py-2 rounded-full border border-slate-200 bg-white hover:bg-slate-50 text-sm font-semibold text-slate-700 transition-colors"
+            >
+              <Pencil className="w-4 h-4" />
+              Edit Profile
+            </button>
             <button
               onClick={() => setIsRecordingModalOpen(true)}
               className="inline-flex items-center gap-2 px-4 py-2 rounded-full border border-teal-200 bg-teal-50 hover:bg-teal-100 text-sm font-semibold text-teal-700 transition-colors"
@@ -130,9 +159,19 @@ export default function PatientProfilePage() {
                   Consent Given
                 </div>
               ) : (
-                <div className="mt-4 inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-amber-50 border border-amber-200 text-amber-700 text-xs font-medium">
-                  <span className="w-1.5 h-1.5 rounded-full bg-amber-500" />
-                  No Consent Recorded
+                <div className="mt-4 flex flex-col items-center gap-2">
+                  <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-amber-50 border border-amber-200 text-amber-700 text-xs font-medium">
+                    <span className="w-1.5 h-1.5 rounded-full bg-amber-500" />
+                    No Consent Recorded
+                  </div>
+                  <button
+                    onClick={handleRecordConsent}
+                    disabled={isUpdatingConsent}
+                    className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-slate-900 text-white text-xs font-medium hover:bg-slate-800 disabled:opacity-50 transition-colors"
+                  >
+                    <CheckCircle className="w-3.5 h-3.5" />
+                    Record Consent Now
+                  </button>
                 </div>
               )}
             </div>
@@ -145,7 +184,9 @@ export default function PatientProfilePage() {
               <InfoCard icon={Phone} label="Phone" value={patient.phone ?? "—"} />
               <InfoCard icon={Mail} label="Email" value={patient.email ?? "—"} />
               <InfoCard icon={Calendar} label="Date of Birth" value={formatDate(patient.dob)} />
-              <InfoCard icon={User} label="Age" value={calculateAge(patient.dob)} />
+              <InfoCard icon={User} label="Age" value={patient.age ? `${patient.age} years` : calculateAge(patient.dob)} />
+              {patient.height && <InfoCard icon={Ruler} label="Height" value={patient.height} />}
+              {patient.weight && <InfoCard icon={Activity} label="Weight" value={patient.weight} />}
               <InfoCard icon={Clock} label="Last Updated" value={formatDate(patient.updated_at)} />
             </div>
           </div>
@@ -179,6 +220,12 @@ export default function PatientProfilePage() {
         isOpen={isRecordingModalOpen} 
         onClose={() => setIsRecordingModalOpen(false)} 
         patientId={id} 
+      />
+
+      <UpdatePatientModal
+        isOpen={isUpdateModalOpen}
+        onClose={() => setIsUpdateModalOpen(false)}
+        patient={patient}
       />
     </div>
   );

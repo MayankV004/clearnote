@@ -3,7 +3,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.future import select
 
 from app.models.patient import Patient
-from app.schemas.patient import PatientCreate, PatientResponse
+from app.schemas.patient import PatientCreate, PatientResponse, PatientUpdate
 from app.core.logger import logger
 from app.core.exceptions import PatientNotFoundException
 from app.services.cache_service import (
@@ -88,3 +88,30 @@ class PatientService:
         await cache.delete(key_patients_list(str(doctor_id)))
 
         return new_patient
+
+    @staticmethod
+    async def update_patient(db: AsyncSession, doctor_id, patient_id: str, patient_in: PatientUpdate) -> Patient:
+        stmt = select(Patient).where(
+            Patient.id == patient_id,
+            Patient.doctor_id == doctor_id,
+            Patient.deleted_at.is_(None)
+        )
+        patient = await db.scalar(stmt)
+        if not patient:
+            logger.warning(f"Patient {patient_id} not found for doctor {doctor_id} during update")
+            raise PatientNotFoundException()
+
+        update_data = patient_in.model_dump(exclude_unset=True)
+        for field, value in update_data.items():
+            setattr(patient, field, value)
+
+        await db.commit()
+        await db.refresh(patient)
+
+        logger.info(f"Updated patient: {patient.name} (ID: {patient_id}) for Doctor ID: {doctor_id}")
+
+        # ── Invalidate caches ─────────────────────────────────────
+        await cache.delete(key_patient(str(doctor_id), str(patient_id)))
+        await cache.delete(key_patients_list(str(doctor_id)))
+
+        return patient

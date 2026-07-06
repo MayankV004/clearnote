@@ -33,6 +33,9 @@ export default function CreatePatientModal({
       email: (formData.get("email") as string) || null,
       phone: (formData.get("phone") as string) || null,
       dob: (formData.get("dob") as string) || null,
+      age: formData.get("age") ? parseInt(formData.get("age") as string, 10) : null,
+      height: (formData.get("height") as string) || null,
+      weight: (formData.get("weight") as string) || null,
     };
 
     try {
@@ -114,6 +117,46 @@ export default function CreatePatientModal({
               id="dob"
               className="w-full rounded-lg border border-slate-300 px-3 py-2 outline-none focus:border-teal-500 focus:ring-1 focus:ring-teal-500 text-slate-700"
             />
+          </div>
+
+          <div className="grid grid-cols-3 gap-4">
+            <div>
+              <label htmlFor="age" className="mb-1 block text-sm font-medium text-slate-700">
+                Age
+              </label>
+              <input
+                type="number"
+                name="age"
+                id="age"
+                className="w-full rounded-lg border border-slate-300 px-3 py-2 outline-none focus:border-teal-500 focus:ring-1 focus:ring-teal-500"
+                placeholder="e.g. 35"
+                min="0"
+              />
+            </div>
+            <div>
+              <label htmlFor="height" className="mb-1 block text-sm font-medium text-slate-700">
+                Height
+              </label>
+              <input
+                type="text"
+                name="height"
+                id="height"
+                className="w-full rounded-lg border border-slate-300 px-3 py-2 outline-none focus:border-teal-500 focus:ring-1 focus:ring-teal-500"
+                placeholder="e.g. 175 cm"
+              />
+            </div>
+            <div>
+              <label htmlFor="weight" className="mb-1 block text-sm font-medium text-slate-700">
+                Weight
+              </label>
+              <input
+                type="text"
+                name="weight"
+                id="weight"
+                className="w-full rounded-lg border border-slate-300 px-3 py-2 outline-none focus:border-teal-500 focus:ring-1 focus:ring-teal-500"
+                placeholder="e.g. 70 kg"
+              />
+            </div>
           </div>
 
           <div className="mt-4 flex gap-3">

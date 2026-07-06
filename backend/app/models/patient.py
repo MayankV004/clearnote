@@ -1,5 +1,5 @@
 import uuid
-from sqlalchemy import Column, String, Date, DateTime, func, ForeignKey
+from sqlalchemy import Column, String, Date, DateTime, func, ForeignKey, Integer
 from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.orm import relationship
 from app.db.base import Base
@@ -13,6 +13,9 @@ class Patient(Base):
     phone = Column(String, nullable=True)
     email = Column(String, nullable=True)
     dob = Column(Date, nullable=True)
+    age = Column(Integer, nullable=True)
+    height = Column(String, nullable=True)
+    weight = Column(String, nullable=True)
     deleted_at = Column(DateTime(timezone=True), nullable=True)
     consent_given_at = Column(DateTime(timezone=True), nullable=True)
     consent_version = Column(String, nullable=True)

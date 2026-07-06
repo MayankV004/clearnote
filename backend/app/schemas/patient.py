@@ -8,9 +8,23 @@ class PatientBase(BaseModel):
     phone: Optional[str] = None
     email: Optional[EmailStr] = None
     dob: Optional[date] = None
+    age: Optional[int] = None
+    height: Optional[str] = None
+    weight: Optional[str] = None
 
 class PatientCreate(PatientBase):
     pass
+
+class PatientUpdate(BaseModel):
+    name: Optional[str] = None
+    phone: Optional[str] = None
+    email: Optional[EmailStr] = None
+    dob: Optional[date] = None
+    age: Optional[int] = None
+    height: Optional[str] = None
+    weight: Optional[str] = None
+    consent_given_at: Optional[datetime] = None
+    consent_version: Optional[str] = None
 
 class PatientResponse(PatientBase):
     id: UUID
