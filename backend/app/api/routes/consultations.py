@@ -2,7 +2,7 @@
 from typing import List
 from uuid import UUID
 from pydantic import BaseModel
-from fastapi import APIRouter, Depends, WebSocket, WebSocketDisconnect, BackgroundTasks, status
+from fastapi import APIRouter, Depends, WebSocket, WebSocketDisconnect, BackgroundTasks, status, UploadFile, File
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.future import select
 
@@ -23,9 +23,37 @@ from app.services.rag_service import rag_service
 router = APIRouter(prefix="/consultations", tags=["consultations"])
 
 
-class IngestRequest(BaseModel):
-    url: str
-    source_name: str
+# ── IMPORTANT: Static routes must be declared before /{consultation_id} ───────
+# Otherwise FastAPI matches 'ingest-guidelines' as a UUID and returns 422.
+
+@router.post("/ingest-guidelines", summary="Ingest a clinical guidelines PDF")
+async def ingest_guidelines_endpoint(
+    source_name: str,
+    file: UploadFile = File(..., description="PDF file to ingest"),
+    db: AsyncSession = Depends(get_db),
+    doctor: Doctor = Depends(get_current_doctor),
+):
+    """
+    Upload a clinical guidelines PDF (e.g. WHO EML) to build the RAG knowledge base.
+    Each page is chunked, embedded via Gemini, and stored in the guideline_chunks table.
+
+    Usage:
+        curl -X POST \
+          -H "Authorization: Bearer <token>" \
+          -F "source_name=WHO EML 2023" \
+          -F "file=@/path/to/guidelines.pdf" \
+          http://localhost:8000/api/consultations/ingest-guidelines
+    """
+    if file.content_type not in ("application/pdf", "application/octet-stream"):
+        return JSONResponse(status_code=400, content={"message": "Only PDF files are accepted."})
+
+    pdf_bytes = await file.read()
+    if not pdf_bytes:
+        return JSONResponse(status_code=400, content={"message": "Uploaded file is empty."})
+
+    count = await rag_service.ingest_from_bytes(pdf_bytes, source_name, db)
+    return {"status": "success", "chunks_ingested": count, "source": source_name}
+
 
 @router.post("/", response_model=ConsultationResponse, status_code=status.HTTP_201_CREATED)
 async def create_consultation(
@@ -185,14 +213,5 @@ async def get_prescription(
 
     presigned_url = await s3_service.generate_presigned_url(consultation.prescription_s3_key, bucket_name=settings.PDF_BUCKET_NAME)
     return {"url": presigned_url}
-
-
-@router.post("/ingest-guidelines")
-async def ingest_guidelines_endpoint(
-    request:IngestRequest,
-    db:AsyncSession=Depends(get_db),
-    doctor=Depends(get_current_doctor)):
-    count=await rag_service.ingest_guidelines(request.url,request.source_name,db)
-    return {"status":"success","chunks_ingested":count}
 
 
