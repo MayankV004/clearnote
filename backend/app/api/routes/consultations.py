@@ -5,6 +5,7 @@ from pydantic import BaseModel
 from fastapi import APIRouter, Depends, WebSocket, WebSocketDisconnect, BackgroundTasks, status, UploadFile, File
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.future import select
+from sqlalchemy.orm import selectinload
 
 from app.api.dependencies.auth import get_current_doctor
 from app.api.dependencies.db import get_db
@@ -19,7 +20,7 @@ from app.services.s3_service import s3_service
 from app.core.config import settings
 from fastapi.responses import JSONResponse
 from app.services.rag_service import rag_service
-
+from app.services.notification_service import notification_service
 router = APIRouter(prefix="/consultations", tags=["consultations"])
 
 
@@ -170,6 +171,7 @@ async def audio_stream(
 @router.post("/{consultation_id}/prescription", response_model=dict)
 async def generate_prescription(
     consultation_id: UUID,
+    background_tasks: BackgroundTasks,
     doctor: Doctor = Depends(get_current_doctor),
     db: AsyncSession = Depends(get_db),
 ):
@@ -178,7 +180,7 @@ async def generate_prescription(
     Returns the presigned URL for the generated PDF.
     """
     # Verify ownership
-    stmt = select(Consultation).where(Consultation.id == consultation_id, Consultation.doctor_id == doctor.id)
+    stmt = select(Consultation).where(Consultation.id == consultation_id, Consultation.doctor_id == doctor.id).options(selectinload(Consultation.patient))
     consultation = await db.scalar(stmt)
     if not consultation:
         raise ConsultationNotFoundException(str(consultation_id))
@@ -190,6 +192,14 @@ async def generate_prescription(
     try:
         s3_key = await pdf_service.generate_prescription_pdf(db, str(consultation_id))
         presigned_url = await s3_service.generate_presigned_url(s3_key, bucket_name=settings.PDF_BUCKET_NAME)
+        
+        if consultation.patient and consultation.patient.email:
+            background_tasks.add_task(
+                notification_service.send_prescription_email,
+                consultation.patient.email,
+                presigned_url
+            )
+            
         return {"url": presigned_url}
     except ValueError as e:
         return JSONResponse(status_code=400, content={"message": str(e)})

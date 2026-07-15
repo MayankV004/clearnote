@@ -297,10 +297,11 @@ async def _run_transcription(consultation_id: str, s3_key: str) -> None:
     from app.services.llm_service import llm_service
     from app.models.medication import Medication
     from app.models.diagnosis import Diagnosis
+    from app.services.notification_service import notification_service
 
     async with AsyncSessionLocal() as db:
         # 1. Fetch the consultation and mark PROCESSING
-        stmt = select(Consultation).where(Consultation.id == consultation_id)
+        stmt = select(Consultation).where(Consultation.id == consultation_id).options(selectinload(Consultation.patient))
         consultation = await db.scalar(stmt)
         if not consultation:
             logger.error(f"Consultation {consultation_id} not found in background task.")
@@ -378,6 +379,13 @@ async def _run_transcription(consultation_id: str, s3_key: str) -> None:
             # 8. Mark COMPLETE — the consultation is refreshed so this is safe
             consultation.status = ConsultationStatus.COMPLETE
             await db.commit()
+            
+            # Send SMS reminders if there are medications and a patient phone number
+            if structured_data.medications and consultation.patient and consultation.patient.phone:
+                await notification_service.send_medication_reminders(
+                    consultation.patient.phone,
+                    structured_data.medications
+                )
 
             logger.info(
                 f"Consultation {consultation_id}: pipeline complete — status=COMPLETE."
