@@ -13,7 +13,7 @@ class Settings(BaseSettings):
     AWS_ACCESS_KEY_ID: str = "test"
     AWS_SECRET_ACCESS_KEY: str = "test"
     AWS_REGION: str = "us-east-1"
-    AWS_ENDPOINT_URL: str = "http://localhost:4566"
+    AWS_ENDPOINT_URL: str | None = None
     AUDIO_BUCKET_NAME: str = "clearnote-audio"
     PDF_BUCKET_NAME: str = "clearnote-pdfs"
     UPSTASH_REDIS_REST_URL: str = ""

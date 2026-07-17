@@ -48,3 +48,32 @@ async def clerk_webhook(request: Request, db: AsyncSession = Depends(get_db)):
         logger.info(f"Successfully processed clerk webhook: created user {email}")
 
     return {"status": "ok"}
+
+
+@router.post("/twilio")
+async def twilio_webhook(request: Request):
+    # Twilio sends data as application/x-www-form-urlencoded
+    try:
+        data = await request.form()
+        message_status = data.get("MessageStatus")
+        message_sid = data.get("MessageSid")
+        to_number = data.get("To")
+        logger.info(f"Twilio Webhook: Message {message_sid} to {to_number} status is {message_status}")
+    except Exception as e:
+        logger.error(f"Error processing Twilio webhook: {e}")
+    return {"status": "ok"}
+
+
+@router.post("/sendgrid")
+async def sendgrid_webhook(request: Request):
+    # SendGrid sends an array of events as application/json
+    try:
+        events = await request.json()
+        if isinstance(events, list):
+            for event in events:
+                email = event.get("email")
+                event_type = event.get("event")
+                logger.info(f"SendGrid Webhook: Event '{event_type}' for email {email}")
+    except Exception as e:
+        logger.error(f"Error processing SendGrid webhook: {e}")
+    return {"status": "ok"}

@@ -1,9 +1,9 @@
-/**
- * utils.ts
- *
- * Shared utility / helper functions used across multiple features.
- * Centralised here to avoid duplicating logic in individual page files.
- */
+import { clsx, type ClassValue } from "clsx"
+import { twMerge } from "tailwind-merge"
+
+export function cn(...inputs: ClassValue[]) {
+  return twMerge(clsx(inputs))
+}
 
 /**
  * Returns a human-readable relative time string from an ISO date string.
@@ -58,12 +58,4 @@ export function getInitials(name: string): string {
     .slice(0, 2)
     .join("")
     .toUpperCase();
-}
-
-/**
- * Conditionally joins class names. Useful for dynamic Tailwind classes.
- * e.g. cn("base-class", condition && "conditional-class")
- */
-export function cn(...classes: (string | false | null | undefined)[]): string {
-  return classes.filter(Boolean).join(" ");
 }

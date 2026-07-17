@@ -57,5 +57,22 @@ class DoctorService:
 
         return doctor
 
+    @staticmethod
+    async def update_doctor_profile(db: AsyncSession, doctor_id: str, data: dict):
+        stmt = select(Doctor).where(Doctor.id == doctor_id)
+        doctor = await db.scalar(stmt)
 
-        
+        if not doctor:
+            raise DoctorNotFoundException()
+
+        for key, value in data.items():
+            if value is not None:
+                setattr(doctor, key, value)
+
+        await db.commit()
+        await db.refresh(doctor)
+
+        # Invalidate cache
+        await cache.delete(key_doctor(doctor.clerk_user_id))
+
+        return doctor

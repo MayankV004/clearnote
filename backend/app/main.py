@@ -19,12 +19,24 @@ from app.api.routes.patients import router as patients_router
 from app.api.routes.doctors import router as doctors_router
 from app.api.routes.consultations import router as consultations_router
 
+from slowapi import Limiter , _rate_limit_exceeded_handler
+from slowapi.errors import RateLimitExceeded
+from slowapi.util import get_remote_address
+from slowapi.middleware import SlowAPIMiddleware
+
+from app.middleware.security_header import SecurityHeadersMiddleware, RequestLoggingMiddleware
+
 app = FastAPI(title="ClearNote API")
 
 
-# ---------------------------------------------------------------------------
-# CORS
-# ---------------------------------------------------------------------------
+# Rate Limiter Initialization
+limiter = Limiter(key_func=get_remote_address , default_limits=["60/minute"])
+app.state.limiter = limiter
+app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
+app.add_middleware(SlowAPIMiddleware)
+
+
+# CORS Middleware
 app.add_middleware(
     CORSMiddleware,
     allow_origins=[settings.FRONTEND_URL],
@@ -33,21 +45,20 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+app.add_middleware(SecurityHeadersMiddleware)
+app.add_middleware(RequestLoggingMiddleware)
 
-# ---------------------------------------------------------------------------
-# Routers
-# ---------------------------------------------------------------------------
-app.include_router(examples_router)   # /public, /protected, /me
+
+#Routes
+
+app.include_router(examples_router)   
 app.include_router(webhooks_router)
 app.include_router(patients_router)
 app.include_router(doctors_router)
 app.include_router(consultations_router)
 
 
-# ---------------------------------------------------------------------------
-# Exception handlers
-# ---------------------------------------------------------------------------
-
+#Exception Handlers
 @app.exception_handler(ConsultationNotFoundException)
 async def consultation_not_found_handler(request: Request, exc: ConsultationNotFoundException):
     return JSONResponse(status_code=404, content={"detail": exc.message})
@@ -67,9 +78,7 @@ async def doctor_not_found_handler(request: Request, exc: DoctorNotFoundExceptio
 async def patient_not_owned_handler(request: Request, exc: PatientNotOwnedException):
     return JSONResponse(status_code=403, content={"detail": exc.message})
 
-# ---------------------------------------------------------------------------
-# Core routes
-# ---------------------------------------------------------------------------
+# health check 
 
 @app.get("/health")
 async def health():
