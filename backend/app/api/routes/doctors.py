@@ -7,6 +7,8 @@ from app.core.exceptions import DoctorNotFoundException , DoctorAlreadyOnboarded
 from sqlalchemy.future import select
 from app.api.dependencies.auth import get_current_doctor
 from app.api.dependencies.db import get_db
+from sqlalchemy import func
+from datetime import datetime
 
 router = APIRouter(prefix="/doctors", tags=["doctors"])
 
@@ -47,3 +49,47 @@ async def update_my_profile(
         return updated_doctor
     except DoctorNotFoundException:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Doctor not found")
+
+@router.get("/me/stats", response_model=dict)
+async def get_my_stats(
+    db: AsyncSession = Depends(get_db),
+    doctor: Doctor = Depends(get_current_doctor)
+):
+    from app.models.patient import Patient
+    from app.models.consultation import Consultation, ConsultationStatus
+    
+    # 1. Total patients
+    stmt_total_patients = select(func.count(Patient.id)).where(Patient.doctor_id == doctor.id, Patient.deleted_at.is_(None))
+    total_patients = await db.scalar(stmt_total_patients) or 0
+    
+    # 2. Patients added this month
+    now = datetime.utcnow()
+    start_of_month = datetime(now.year, now.month, 1)
+    stmt_new_patients = select(func.count(Patient.id)).where(
+        Patient.doctor_id == doctor.id,
+        Patient.deleted_at.is_(None),
+        Patient.created_at >= start_of_month
+    )
+    new_patients_this_month = await db.scalar(stmt_new_patients) or 0
+    
+    # 3. Total consultations
+    stmt_total_consultations = select(func.count(Consultation.id)).where(
+        Consultation.doctor_id == doctor.id,
+        Consultation.deleted_at.is_(None)
+    )
+    total_consultations = await db.scalar(stmt_total_consultations) or 0
+    
+    # 4. Total SOAP notes (Completed consultations)
+    stmt_soap_notes = select(func.count(Consultation.id)).where(
+        Consultation.doctor_id == doctor.id,
+        Consultation.deleted_at.is_(None),
+        Consultation.status == ConsultationStatus.COMPLETE
+    )
+    total_soap_notes = await db.scalar(stmt_soap_notes) or 0
+    
+    return {
+        "total_patients": total_patients,
+        "new_patients_this_month": new_patients_this_month,
+        "total_consultations": total_consultations,
+        "total_soap_notes": total_soap_notes
+    }

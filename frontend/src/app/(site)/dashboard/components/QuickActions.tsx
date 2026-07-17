@@ -4,13 +4,14 @@ import { Plus, Mic, FileText } from "lucide-react";
 
 interface QuickActionsProps {
   onAddPatient: () => void;
+  onSelectPatient: () => void;
 }
 
 /**
  * Quick-action buttons shown in the dashboard sidebar.
  * Pure UI — no data fetching.
  */
-export function QuickActions({ onAddPatient }: QuickActionsProps) {
+export function QuickActions({ onAddPatient, onSelectPatient }: QuickActionsProps) {
   return (
     <div className="bg-white border border-slate-200 rounded-3xl p-5 shadow-sm">
       <h3 className="text-sm font-bold text-slate-700 uppercase tracking-wider mb-4">
@@ -26,27 +27,19 @@ export function QuickActions({ onAddPatient }: QuickActionsProps) {
         </button>
 
         <button
-          disabled
-          title="Coming soon"
-          className="w-full flex items-center gap-3 px-4 py-3 rounded-xl bg-slate-50 text-slate-400 text-sm font-medium text-left cursor-not-allowed"
+          onClick={onSelectPatient}
+          className="w-full flex items-center gap-3 px-4 py-3 rounded-xl bg-slate-50 hover:bg-slate-100 text-slate-700 text-sm font-medium transition-colors text-left"
         >
           <Mic className="w-4 h-4 flex-shrink-0" />
           Record Consultation
-          <span className="ml-auto text-xs bg-slate-200 text-slate-500 px-2 py-0.5 rounded-full">
-            Soon
-          </span>
         </button>
 
         <button
-          disabled
-          title="Coming soon"
-          className="w-full flex items-center gap-3 px-4 py-3 rounded-xl bg-slate-50 text-slate-400 text-sm font-medium text-left cursor-not-allowed"
+          onClick={onSelectPatient}
+          className="w-full flex items-center gap-3 px-4 py-3 rounded-xl bg-slate-50 hover:bg-slate-100 text-slate-700 text-sm font-medium transition-colors text-left"
         >
           <FileText className="w-4 h-4 flex-shrink-0" />
           Generate SOAP Note
-          <span className="ml-auto text-xs bg-slate-200 text-slate-500 px-2 py-0.5 rounded-full">
-            Soon
-          </span>
         </button>
       </div>
     </div>

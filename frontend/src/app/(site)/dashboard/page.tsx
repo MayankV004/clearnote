@@ -8,21 +8,23 @@ import { ChevronRight } from "lucide-react";
 import { DashboardNavbar } from "./components/DashboardNavbar";
 import { WelcomeBanner } from "./components/WelcomeBanner";
 import { QuickActions } from "./components/QuickActions";
-import { FeatureTeaser } from "./components/FeatureTeaser";
-
 // Feature components
 import { DashboardStats } from "@/features/patients/components/DashboardStats";
 import { DoctorProfileCard } from "@/features/doctor/components/DoctorProfileCard";
 import PatientList from "@/features/patients/components/PatientList";
 import CreatePatientModal from "@/features/patients/components/CreatePatientModal";
+import SelectPatientModal from "@/features/patients/components/SelectPatientModal";
 import { usePatients } from "@/features/patients/api/usePatients";
 
 export default function Dashboard() {
   const [isModalOpen, setIsModalOpen] = useState(false);
+  const [isSelectPatientModalOpen, setIsSelectPatientModalOpen] = useState(false);
   const { data: patients, isLoading } = usePatients();
 
   const openModal = () => setIsModalOpen(true);
   const closeModal = () => setIsModalOpen(false);
+  const openSelectPatientModal = () => setIsSelectPatientModalOpen(true);
+  const closeSelectPatientModal = () => setIsSelectPatientModalOpen(false);
 
   return (
     <div className="min-h-screen bg-slate-50 text-slate-900 selection:bg-teal-500/30">
@@ -64,9 +66,8 @@ export default function Dashboard() {
 
           {/* Sidebar — 1/3 width */}
           <aside className="space-y-5">
-            <QuickActions onAddPatient={openModal} />
+            <QuickActions onAddPatient={openModal} onSelectPatient={openSelectPatientModal} />
             <DoctorProfileCard />
-            <FeatureTeaser />
           </aside>
 
         </div>
@@ -76,6 +77,10 @@ export default function Dashboard() {
         isOpen={isModalOpen}
         onClose={closeModal}
         onSuccess={closeModal}
+      />
+      <SelectPatientModal
+        isOpen={isSelectPatientModalOpen}
+        onClose={closeSelectPatientModal}
       />
     </div>
   );
