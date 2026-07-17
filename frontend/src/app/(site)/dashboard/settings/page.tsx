@@ -34,7 +34,9 @@ export default function SettingsPage() {
   // Pre-fill the form when data arrives
   useEffect(() => {
     if (profile) {
+      // eslint-disable-next-line react-hooks/set-state-in-effect
       setLicenseNo(profile.license_no || "");
+      // eslint-disable-next-line react-hooks/set-state-in-effect
       setSignatureUrl(profile.signature_url || "");
     }
   }, [profile]);
