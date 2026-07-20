@@ -84,8 +84,12 @@ class PatientService:
 
         logger.info(f"Created new patient: {new_patient.name} for Doctor ID: {doctor_id}")
 
+        from app.services.cache_service import key_stats
         # ── Invalidate patient list cache ─────────────────────────────────────
-        await cache.delete(key_patients_list(str(doctor_id)))
+        await cache.delete(
+            key_patients_list(str(doctor_id)),
+            key_stats(str(doctor_id))
+        )
 
         return new_patient
 
