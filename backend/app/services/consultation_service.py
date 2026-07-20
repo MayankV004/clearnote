@@ -61,8 +61,12 @@ class ConsultationService:
 
         logger.info(f"Created consultation {consultation.id} for patient {patient_id}")
 
+        from app.services.cache_service import key_stats
         # ── Invalidate the consultations list for this patient ─────────────────
-        await cache.delete(key_consultations_list(str(doctor_id), str(patient_id)))
+        await cache.delete(
+            key_consultations_list(str(doctor_id), str(patient_id)),
+            key_stats(str(doctor_id))
+        )
 
         return consultation
 
@@ -400,9 +404,11 @@ async def _run_transcription(consultation_id: str, s3_key: str) -> None:
             try:
                 doctor_id_str = str(consultation.doctor_id)
                 patient_id_str = str(consultation.patient_id)
+                from app.services.cache_service import key_stats
                 await cache.delete(
                     key_consultation(doctor_id_str, consultation_id),
                     key_consultations_list(doctor_id_str, patient_id_str),
+                    key_stats(doctor_id_str)
                 )
                 logger.debug(f"Cache invalidated for consultation {consultation_id} after COMPLETE.")
             except Exception as cache_exc:

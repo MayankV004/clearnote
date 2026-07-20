@@ -24,6 +24,7 @@ TTL_PATIENTS_LIST = 300 # 5 min   — patient list
 TTL_PATIENT = 300       # 5 min   — individual patient
 TTL_CONSULTATIONS = 15  # 15 s    — short: list refreshes after recording completes
 TTL_CONSULTATION = 15   # 15 s    — short: allows prompt status updates during polling
+TTL_STATS = 300         # 5 min   — dashboard stats
 
 
 # ── Cache key helpers ─────────────────────────────────────────────────────────
@@ -42,6 +43,9 @@ def key_consultations_list(doctor_id: str, patient_id: str) -> str:
 
 def key_consultation(doctor_id: str, consultation_id: str) -> str:
     return f"consultation:{doctor_id}:{consultation_id}"
+
+def key_stats(doctor_id: str) -> str:
+    return f"stats:{doctor_id}"
 
 
 # ── Service ──────────────────────────────────────────────────────────────────

@@ -57,6 +57,12 @@ async def get_my_stats(
 ):
     from app.models.patient import Patient
     from app.models.consultation import Consultation, ConsultationStatus
+    from app.services.cache_service import cache, key_stats, TTL_STATS
+    
+    cache_key = key_stats(str(doctor.id))
+    cached_stats = await cache.get(cache_key)
+    if cached_stats:
+        return cached_stats
     
     # 1. Total patients
     stmt_total_patients = select(func.count(Patient.id)).where(Patient.doctor_id == doctor.id, Patient.deleted_at.is_(None))
@@ -87,9 +93,12 @@ async def get_my_stats(
     )
     total_soap_notes = await db.scalar(stmt_soap_notes) or 0
     
-    return {
+    stats = {
         "total_patients": total_patients,
         "new_patients_this_month": new_patients_this_month,
         "total_consultations": total_consultations,
         "total_soap_notes": total_soap_notes
     }
+    
+    await cache.set(cache_key, stats, TTL_STATS)
+    return stats
