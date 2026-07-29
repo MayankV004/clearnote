@@ -9,3 +9,4 @@ from app.models.diagnosis import Diagnosis
 from app.models.interaction import Interaction
 from app.models.guideline_chunk import GuidelineChunk
 from .audit_log import AuditLog
+from .data_deletion import DataDeletionRequest

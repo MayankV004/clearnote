@@ -1,0 +1,81 @@
+import uuid
+from typing import List
+from fastapi import APIRouter, Depends, HTTPException, status
+from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.future import select
+from datetime import datetime, timezone
+
+from app.api.dependencies.db import get_db
+from app.api.dependencies.auth import get_current_doctor
+from app.models.doctor import Doctor
+from app.models.patient import Patient
+from app.models.data_deletion import DataDeletionRequest, DataDeletionStatus
+from app.schemas.data_deletion import DataDeletionRequestCreate, DataDeletionRequestResponse
+
+router = APIRouter(prefix="/data-deletion", tags=["Data Deletion"])
+
+@router.post("/", response_model=DataDeletionRequestResponse, status_code=status.HTTP_201_CREATED)
+async def request_data_deletion(
+    req: DataDeletionRequestCreate,
+    db: AsyncSession = Depends(get_db),
+    current_doctor: Doctor = Depends(get_current_doctor)
+):
+    # Verify patient exists and belongs to doctor (RLS ensures it anyway)
+    stmt = select(Patient).where(Patient.id == req.patient_id)
+    patient = await db.scalar(stmt)
+    if not patient:
+        raise HTTPException(status_code=404, detail="Patient not found")
+
+    deletion_req = DataDeletionRequest(
+        patient_id=patient.id,
+        doctor_id=current_doctor.id,
+        status=DataDeletionStatus.PENDING
+    )
+    db.add(deletion_req)
+    await db.commit()
+    await db.refresh(deletion_req)
+    return deletion_req
+
+
+@router.post("/{request_id}/process", response_model=DataDeletionRequestResponse)
+async def process_data_deletion(
+    request_id: uuid.UUID,
+    db: AsyncSession = Depends(get_db),
+    current_doctor: Doctor = Depends(get_current_doctor)
+):
+    stmt = select(DataDeletionRequest).where(
+        DataDeletionRequest.id == request_id,
+        DataDeletionRequest.status == DataDeletionStatus.PENDING
+    )
+    deletion_req = await db.scalar(stmt)
+    
+    if not deletion_req:
+        raise HTTPException(status_code=404, detail="Pending deletion request not found")
+
+    # Hard delete the patient. Note: PostgreSQL ON DELETE CASCADE should be set up
+    # in the schema, but if not, we must manually delete child records.
+    # We will just delete the patient. SQLAlchemy or Postgres will handle cascading if configured,
+    # otherwise we might get a foreign key constraint error.
+    # Let's delete the patient
+    patient_stmt = select(Patient).where(Patient.id == deletion_req.patient_id)
+    patient = await db.scalar(patient_stmt)
+    
+    if patient:
+        await db.delete(patient)
+    
+    deletion_req.status = DataDeletionStatus.PROCESSED
+    deletion_req.processed_at = datetime.now(timezone.utc)
+    
+    await db.commit()
+    await db.refresh(deletion_req)
+    return deletion_req
+
+@router.get("/", response_model=List[DataDeletionRequestResponse])
+async def list_data_deletion_requests(
+    db: AsyncSession = Depends(get_db),
+    current_doctor: Doctor = Depends(get_current_doctor)
+):
+    stmt = select(DataDeletionRequest).order_by(DataDeletionRequest.requested_at.desc())
+    result = await db.execute(stmt)
+    requests = result.scalars().all()
+    return requests

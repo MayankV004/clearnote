@@ -98,4 +98,11 @@ async def get_current_doctor(state: CurrentUser, db: AsyncSession = Depends(get_
     except Exception as exc:
         logger.warning(f"Could not cache doctor {clerk_user_id}: {exc}")
 
+    # Inject RLS configuration into the current database transaction
+    from sqlalchemy import text
+    try:
+        await db.execute(text(f"SELECT set_config('app.current_doctor_id', '{doctor.id}', true)"))
+    except Exception as e:
+        logger.warning(f"Failed to set RLS config for {doctor.id}: {e}")
+
     return doctor

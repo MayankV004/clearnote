@@ -1,0 +1,29 @@
+services:
+  - type: web
+    name: clearnote-backend
+    env: python
+    buildCommand: "cd backend && uv pip install -r pyproject.toml && uv run alembic upgrade head"
+    startCommand: "cd backend && uvicorn app.main:app --host 0.0.0.0 --port $PORT"
+    envVars:
+      - key: DATABASE_URL
+        fromDatabase:
+          name: clearnote-db
+          property: connectionString
+      - key: CLERK_SECRET_KEY
+        sync: false
+      - key: FRONTEND_URL
+        value: "https://clearnote.vercel.app"
+      - key: AWS_ACCESS_KEY_ID
+        sync: false
+      - key: AWS_SECRET_ACCESS_KEY
+        sync: false
+      - key: GROQ_API_KEY
+        sync: false
+      - key: DEEPGRAM_API_KEY
+        sync: false
+
+databases:
+  - name: clearnote-db
+    databaseName: clearnote
+    user: clearnote_user
+    plan: free
