@@ -7,6 +7,7 @@ import { animate, createScope, stagger } from "animejs";
 
 export function HeroSection() {
   const heroRef = useRef<HTMLElement>(null);
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const scope = useRef<any>(null);
 
   useEffect(() => {

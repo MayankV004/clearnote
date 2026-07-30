@@ -7,6 +7,7 @@ import { animate, createScope } from "animejs";
 
 export function AuthLayout({ children }: { children: React.ReactNode }) {
   const containerRef = useRef<HTMLDivElement>(null);
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const scope = useRef<any>(null);
 
   useEffect(() => {

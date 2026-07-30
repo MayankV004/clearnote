@@ -23,6 +23,7 @@ export default function Dashboard() {
   const { data: patients, isLoading } = usePatients();
   
   const containerRef = useRef<HTMLDivElement>(null);
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const scope = useRef<any>(null);
 
   useEffect(() => {

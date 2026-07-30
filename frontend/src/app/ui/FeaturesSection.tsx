@@ -39,6 +39,7 @@ const features = [
 
 export function FeaturesSection() {
   const containerRef = useRef<HTMLDivElement>(null);
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const scope = useRef<any>(null);
 
   useEffect(() => {
