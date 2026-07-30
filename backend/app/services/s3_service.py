@@ -172,6 +172,40 @@ class S3Service:
             )
             raise
 
+    async def upload_signature(self, image_bytes: bytes, doctor_id: str, content_type: str) -> str:
+        """
+        Upload doctor signature image to the S3 bucket.
+        Uses the PDF_BUCKET_NAME as it fits with prescriptions.
+        Returns the S3 key.
+        """
+        extension = content_type.split("/")[-1] if "/" in content_type else "png"
+        key = f"signatures/{doctor_id}.{extension}"
+
+        await self._ensure_bucket_exists(settings.PDF_BUCKET_NAME, "_pdf_bucket_verified")
+
+        logger.info(
+            f"S3Service: uploading signature {len(image_bytes):,} bytes → "
+            f"s3://{settings.PDF_BUCKET_NAME}/{key}"
+        )
+
+        def _upload():
+            self.client.put_object(
+                Bucket=settings.PDF_BUCKET_NAME,
+                Key=key,
+                Body=image_bytes,
+                ContentType=content_type,
+            )
+
+        try:
+            await run_in_threadpool(_upload)
+            logger.info(f"S3Service: upload complete – {key}")
+            return key
+        except (BotoCoreError, ClientError) as exc:
+            logger.error(
+                f"S3Service: upload failed for signature {doctor_id} – {exc}"
+            )
+            raise
+
     async def download_audio(self, s3_key: str) -> bytes:
         """
         Download an audio file from S3 and return its raw bytes.

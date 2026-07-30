@@ -150,7 +150,11 @@
     </ul>
 
     <div class="footer">
+        {% if signature_url %}
+        <img src="{{ signature_url }}" alt="Doctor's Signature" style="max-height: 80px; max-width: 200px; display: block; margin-left: auto; margin-bottom: 10px;" />
+        {% else %}
         <div class="signature-line"></div>
+        {% endif %}
         <p><strong>{{ doctor.name }}</strong></p>
         <p>Doctor's Signature</p>
     </div>

@@ -44,6 +44,20 @@ class PDFService:
 
         logger.info(f"Generating PDF prescription for consultation {consultation_id}...")
 
+        signature_presigned_url = None
+        if consultation.doctor.signature_url:
+            if consultation.doctor.signature_url.startswith("http"):
+                signature_presigned_url = consultation.doctor.signature_url
+            else:
+                from app.core.config import settings
+                try:
+                    signature_presigned_url = await s3_service.generate_presigned_url(
+                        consultation.doctor.signature_url,
+                        bucket_name=settings.PDF_BUCKET_NAME
+                    )
+                except Exception as e:
+                    logger.error(f"Failed to generate presigned URL for signature: {e}")
+
         # 2. Render HTML template with data
         template = self.env.get_template('prescription_template.html')
         html_out = template.render(
@@ -53,6 +67,7 @@ class PDFService:
             soap_note=consultation.soap_note,
             medications=consultation.medications,
             diagnoses=consultation.diagnoses,
+            signature_url=signature_presigned_url,
             str=str  # Pass str built-in for type conversion in template
         )
 

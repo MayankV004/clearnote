@@ -17,6 +17,13 @@ class DoctorOnboarding(BaseModel):
 class DoctorUpdate(BaseModel):
     license_no: Optional[str] = None
     signature_url: Optional[str] = None
+    clinic_name: Optional[str] = None
+    clinic_address: Optional[str] = None
+    clinic_phone: Optional[str] = None
+    speciality: Optional[str] = None
+    years_of_experience: Optional[int] = None
+    bio: Optional[str] = None
+    name: Optional[str] = None
 
 
 class DoctorResponse(BaseModel):

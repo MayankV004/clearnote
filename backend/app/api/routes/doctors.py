@@ -2,7 +2,7 @@ from app.services.doctor_service import DoctorService
 from app.schemas.doctor import DoctorResponse , DoctorOnboarding, DoctorUpdate
 from sqlalchemy.ext.asyncio import AsyncSession
 from app.models.doctor import Doctor 
-from fastapi import APIRouter , Depends , status, HTTPException
+from fastapi import APIRouter, Depends, status, HTTPException, UploadFile, File
 from app.core.exceptions import DoctorNotFoundException , DoctorAlreadyOnboardedException
 from sqlalchemy.future import select
 from app.api.dependencies.auth import get_current_doctor
@@ -31,7 +31,43 @@ async def get_my_profile(
     """
     Fetch the currently logged-in doctor's profile.
     """
+    if doctor.signature_url and not doctor.signature_url.startswith("http"):
+        from app.services.s3_service import s3_service
+        from app.core.config import settings
+        try:
+            presigned = await s3_service.generate_presigned_url(doctor.signature_url, bucket_name=settings.PDF_BUCKET_NAME)
+            resp = DoctorResponse.model_validate(doctor)
+            resp.signature_url = presigned
+            return resp
+        except Exception:
+            pass
     return doctor
+
+@router.post("/me/signature", response_model=dict)
+async def upload_signature(
+    file: UploadFile = File(...),
+    db: AsyncSession = Depends(get_db),
+    doctor: Doctor = Depends(get_current_doctor)
+):
+    """
+    Upload a digital signature image.
+    """
+    if not file.content_type.startswith("image/"):
+        raise HTTPException(status_code=400, detail="Only image files are allowed.")
+    
+    file_bytes = await file.read()
+    if not file_bytes:
+        raise HTTPException(status_code=400, detail="Empty file uploaded.")
+        
+    from app.services.s3_service import s3_service
+    s3_key = await s3_service.upload_signature(file_bytes, str(doctor.id), file.content_type)
+    
+    from app.services.doctor_service import DoctorService
+    await DoctorService.update_doctor_profile(db, str(doctor.id), {"signature_url": s3_key})
+    
+    from app.core.config import settings
+    presigned = await s3_service.generate_presigned_url(s3_key, bucket_name=settings.PDF_BUCKET_NAME)
+    return {"signature_url": presigned}
 
 @router.patch("/me", response_model=DoctorResponse)
 async def update_my_profile(

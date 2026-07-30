@@ -33,11 +33,16 @@ async function apiFetch<T>(
   token: string | null,
   options: RequestInit = {}
 ): Promise<T> {
-  const headers: HeadersInit = {
-    "Content-Type": "application/json",
-    ...(token ? { Authorization: `Bearer ${token}` } : {}),
-    ...(options.headers ?? {}),
-  };
+  const isFormData = options.body instanceof FormData;
+  const headers = new Headers(options.headers || {});
+  
+  if (token) {
+    headers.set("Authorization", `Bearer ${token}`);
+  }
+  
+  if (!isFormData && !headers.has("Content-Type")) {
+    headers.set("Content-Type", "application/json");
+  }
 
   const res = await fetch(`${BASE_URL}${path}`, { ...options, headers });
 
@@ -87,7 +92,7 @@ export function useApiClient() {
       const token = await getAuthToken();
       return apiFetch<T>(path, token, {
         method: "POST",
-        body: JSON.stringify(body),
+        body: body instanceof FormData ? body : JSON.stringify(body),
       });
     },
     [getAuthToken]

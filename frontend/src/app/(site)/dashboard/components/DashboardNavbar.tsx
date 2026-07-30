@@ -1,8 +1,9 @@
 "use client";
 
 import { UserButton } from "@clerk/nextjs";
-import { Plus, Mic } from "lucide-react";
+import { Plus, Mic, Settings } from "lucide-react";
 import Image from "next/image";
+import Link from "next/link";
 
 interface DashboardNavbarProps {
   onAddPatient: () => void;
@@ -39,6 +40,15 @@ export function DashboardNavbar({ onAddPatient }: DashboardNavbarProps) {
             <Plus className="w-4 h-4" />
             New Patient
           </button>
+          
+          <Link
+            href="/dashboard/settings"
+            className="inline-flex items-center justify-center p-2 rounded-full border border-slate-200 text-slate-500 hover:bg-slate-50 hover:text-teal-600 transition-colors"
+            title="Profile & Settings"
+          >
+            <Settings className="w-5 h-5" />
+          </Link>
+          
           <UserButton
             appearance={{ elements: { avatarBox: "h-9 w-9 border border-slate-200" } }}
           />
