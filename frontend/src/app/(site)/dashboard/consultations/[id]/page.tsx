@@ -132,7 +132,7 @@ export default function ConsultationReviewPage() {
     <div className="min-h-screen bg-slate-50 text-slate-900 selection:bg-teal-500/30">
       {/* Header */}
       <header className="sticky top-0 z-40 bg-white/80 backdrop-blur-md border-b border-slate-200">
-        <div className="mx-auto max-w-7xl px-6 py-4 flex items-center justify-between">
+        <div className="mx-auto max-w-screen-2xl px-6 py-4 flex items-center justify-between">
           <div className="flex items-center gap-3">
             <button
               onClick={() => router.back()}
@@ -232,7 +232,7 @@ export default function ConsultationReviewPage() {
         </div>
       </header>
 
-      <main className="mx-auto max-w-7xl px-6 py-10">
+      <main className="mx-auto max-w-screen-2xl px-6 py-10">
         <div className="grid grid-cols-1 lg:grid-cols-12 gap-8">
           {/* Left Column: Medications & Diagnoses (lg:col-span-3) */}
           <div className="lg:col-span-3 space-y-6">

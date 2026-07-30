@@ -26,7 +26,7 @@ function AuthLoadingSkeleton() {
     <div className="min-h-screen bg-slate-50">
       {/* Navbar — the one element shared by every route under (site)/ */}
       <div className="sticky top-0 z-40 bg-white border-b border-slate-200">
-        <div className="mx-auto max-w-6xl px-6 py-3.5 flex items-center justify-between">
+        <div className="mx-auto max-w-screen-2xl px-6 py-3.5 flex items-center justify-between">
           <div className="flex items-center gap-2.5">
             <div className="h-9 w-9 rounded-xl bg-slate-200 animate-pulse" />
             <div className="h-5 w-24 rounded bg-slate-200 animate-pulse" />

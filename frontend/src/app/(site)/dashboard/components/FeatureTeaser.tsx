@@ -8,7 +8,7 @@ import { Mic } from "lucide-react";
  */
 export function FeatureTeaser() {
   return (
-    <div className="bg-gradient-to-br from-teal-50 to-cyan-50 border border-teal-200 rounded-3xl p-5">
+    <div className="bg-brand-teal border border-teal-200 rounded-3xl p-5">
       <div className="w-9 h-9 rounded-xl bg-teal-600 flex items-center justify-center mb-3">
         <Mic className="w-4 h-4 text-white" />
       </div>

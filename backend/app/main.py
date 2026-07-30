@@ -18,7 +18,7 @@ from app.api.routes.webhooks import router as webhooks_router
 from app.api.routes.patients import router as patients_router
 from app.api.routes.doctors import router as doctors_router
 from app.api.routes.consultations import router as consultations_router
-
+from app.api.routes.data_deletion import router as data_deletion_router
 from slowapi import Limiter , _rate_limit_exceeded_handler
 from slowapi.errors import RateLimitExceeded
 from slowapi.util import get_remote_address
@@ -56,6 +56,7 @@ app.include_router(webhooks_router)
 app.include_router(patients_router)
 app.include_router(doctors_router)
 app.include_router(consultations_router)
+app.include_router(data_deletion_router)
 
 
 #Exception Handlers
