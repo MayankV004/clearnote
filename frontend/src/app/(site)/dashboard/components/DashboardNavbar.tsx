@@ -2,6 +2,7 @@
 
 import { UserButton } from "@clerk/nextjs";
 import { Plus, Mic } from "lucide-react";
+import Image from "next/image";
 
 interface DashboardNavbarProps {
   onAddPatient: () => void;
@@ -13,14 +14,12 @@ interface DashboardNavbarProps {
  */
 export function DashboardNavbar({ onAddPatient }: DashboardNavbarProps) {
   return (
-    <header className="sticky top-0 z-40 bg-white/90 backdrop-blur-md border-b border-slate-200">
-      <div className="mx-auto max-w-6xl px-6 py-3.5 flex items-center justify-between">
+    <header className="sticky top-0 z-40 bg-white/80 backdrop-blur-md border-b border-slate-200">
+      <div className="mx-auto max-w-screen-2xl px-6 py-3.5 flex items-center justify-between">
         {/* Logo */}
-        <div className="flex items-center gap-2.5">
-          <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-teal-600 text-white font-bold text-sm shadow-sm">
-            CN
-          </div>
-          <span className="text-lg font-bold tracking-tight text-slate-900">ClearNote</span>
+        <div className="flex items-center gap-3">
+          <Image src="/logo.png" alt="ClearNote Logo" width={40} height={40} className="drop-shadow-md" />
+          <span className="text-xl font-bold tracking-tight text-slate-900 text-brand-teal">ClearNote</span>
         </div>
 
         {/* Actions */}

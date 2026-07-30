@@ -1,11 +1,11 @@
 "use client";
 
-import { useState } from "react";
+import React, { useState, useRef, useEffect } from "react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
-import { motion, AnimatePresence } from "framer-motion";
+import { animate } from "animejs";
+import Image from "next/image";
 import {
-  Stethoscope,
   Building2,
   User,
   ArrowRight,
@@ -26,7 +26,7 @@ const STEPS = [
     id: 1,
     title: "Professional Details",
     subtitle: "Your credentials & speciality",
-    icon: Stethoscope,
+    icon: User,
   },
   {
     id: 2,
@@ -76,7 +76,22 @@ function InputField({
 }
 
 const inputClass =
-  "block w-full px-4 py-3 rounded-xl border border-slate-200 bg-white text-slate-900 placeholder-slate-400 text-sm transition-all duration-200 focus:outline-none focus:ring-2 focus:ring-teal-500 focus:border-transparent hover:border-slate-300 shadow-sm";
+  "block w-full px-4 py-3 rounded-2xl border border-cyan-100 bg-white/70 backdrop-blur-md text-slate-900 placeholder-slate-400 text-sm transition-all duration-300 focus:outline-none focus:ring-2 focus:ring-cyan-500 focus:border-transparent hover:border-cyan-300 shadow-sm";
+
+function AnimeStep({ children, stepKey }: { children: React.ReactNode, stepKey: number }) {
+  const ref = React.useRef<HTMLDivElement>(null);
+  React.useEffect(() => {
+    if (ref.current) {
+      animate(ref.current, {
+        translateX: [24, 0],
+        opacity: [0, 1],
+        ease: 'outQuart',
+        duration: 400
+      });
+    }
+  }, [stepKey]);
+  return <div ref={ref}>{children}</div>;
+}
 
 export default function OnboardingPage() {
   const [currentStep, setCurrentStep] = useState(1);
@@ -149,15 +164,13 @@ export default function OnboardingPage() {
     <div className="min-h-screen bg-white text-slate-900 selection:bg-teal-500/30">
 
       {/* ── Top Nav Bar (matches site Navbar) ────────────────────── */}
-      <header className="fixed top-0 left-0 right-0 z-50 border-b border-slate-200 bg-white/80 backdrop-blur-md">
-        <div className="mx-auto flex max-w-7xl items-center justify-between px-6 py-4">
-          <div className="flex items-center gap-2">
-            <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-teal-50 text-teal-600">
-              <Stethoscope className="h-6 w-6" />
-            </div>
-            <span className="text-xl font-bold text-slate-900 tracking-tight">ClearNote</span>
+      <header className="fixed top-0 left-0 right-0 z-50 border-b border-cyan-100 bg-white/60 backdrop-blur-xl">
+        <div className="mx-auto flex max-w-screen-2xl items-center justify-between px-6 py-4">
+          <div className="flex items-center gap-3">
+            <Image src="/logo.png" alt="ClearNote Logo" width={40} height={40} className="drop-shadow-sm" />
+            <span className="text-xl font-bold tracking-tight text-slate-900 text-brand-teal">ClearNote</span>
           </div>
-          <div className="flex items-center gap-2 text-sm text-slate-500">
+          <div className="flex items-center gap-2 text-sm text-cyan-600 font-medium">
             <span>Step {currentStep} of {STEPS.length}</span>
           </div>
         </div>
@@ -167,14 +180,14 @@ export default function OnboardingPage() {
       <main className="flex min-h-screen pt-[73px]">
 
         {/* Left Panel */}
-        <div className="hidden lg:flex lg:w-[400px] xl:w-[460px] flex-col border-r border-slate-200 bg-slate-50 px-10 py-16 flex-shrink-0 relative overflow-hidden">
+        <div className="hidden lg:flex lg:w-[400px] xl:w-[460px] flex-col border-r border-cyan-100 bg-white/30 px-10 py-16 flex-shrink-0 relative overflow-hidden">
           {/* Subtle teal glow */}
-          <div className="absolute top-0 right-0 w-72 h-72 bg-teal-500/10 rounded-full blur-3xl -z-0 pointer-events-none" />
+          
 
           <div className="relative z-10 flex flex-col h-full">
             {/* Greeting */}
             <div className="mb-12">
-              <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-teal-50 border border-teal-200 text-teal-600 text-xs font-medium mb-4">
+              <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-white border border-cyan-200 text-cyan-700 text-xs font-medium mb-4 shadow-sm">
                 <Sparkles className="h-3.5 w-3.5" />
                 <span>Profile Setup</span>
               </div>
@@ -195,20 +208,20 @@ export default function OnboardingPage() {
                 return (
                   <div
                     key={s.id}
-                    className={`flex items-center gap-4 p-4 rounded-2xl border transition-all duration-300 ${
+                    className={`flex items-center gap-4 p-4 rounded-3xl border transition-all duration-300 ${
                       isCurrent
-                        ? "bg-white border-teal-200 shadow-sm"
+                        ? "bg-white/70 backdrop-blur-md border-cyan-200 shadow-sm"
                         : isCompleted
-                        ? "bg-teal-50 border-teal-100"
-                        : "bg-white border-slate-100 opacity-50"
+                        ? "bg-white/50 border-cyan-100"
+                        : "bg-white/40 border-slate-100 opacity-50"
                     }`}
                   >
                     <div
                       className={`w-9 h-9 rounded-xl flex items-center justify-center flex-shrink-0 transition-colors ${
                         isCompleted
-                          ? "bg-teal-600 text-white"
+                          ? "bg-cyan-600 text-white"
                           : isCurrent
-                          ? "bg-teal-50 text-teal-600 border border-teal-200"
+                          ? "bg-white text-cyan-600 border border-cyan-200 shadow-sm"
                           : "bg-slate-100 text-slate-400"
                       }`}
                     >
@@ -219,7 +232,7 @@ export default function OnboardingPage() {
                       )}
                     </div>
                     <div>
-                      <p className={`text-sm font-semibold ${isCurrent ? "text-slate-900" : isCompleted ? "text-teal-700" : "text-slate-400"}`}>
+                      <p className={`text-sm font-semibold ${isCurrent ? "text-slate-900" : isCompleted ? "text-cyan-700" : "text-slate-400"}`}>
                         {s.title}
                       </p>
                       <p className={`text-xs ${isCurrent ? "text-slate-500" : "text-slate-400"}`}>
@@ -249,53 +262,35 @@ export default function OnboardingPage() {
 
             {/* Mobile Step Label */}
             <div className="lg:hidden mb-6">
-              <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-teal-50 border border-teal-200 text-teal-600 text-xs font-medium">
+              <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-white border border-cyan-200 text-cyan-700 text-xs font-medium">
                 <StepIcon className="h-3.5 w-3.5" />
                 <span>{step.title}</span>
               </div>
             </div>
 
             {/* Section Header */}
-            <AnimatePresence mode="wait">
-              <motion.div
-                key={`header-${currentStep}`}
-                initial={{ opacity: 0, y: 12 }}
-                animate={{ opacity: 1, y: 0 }}
-                exit={{ opacity: 0, y: -12 }}
-                transition={{ duration: 0.25 }}
-                className="mb-6"
-              >
-                <h1 className="text-2xl font-extrabold text-slate-900 mb-1">
-                  {step.title}
-                </h1>
-                <p className="text-slate-500 text-sm">{step.subtitle}</p>
-              </motion.div>
-            </AnimatePresence>
+            <div className="mb-6">
+              <h1 className="text-2xl font-extrabold text-slate-900 mb-1">
+                {step.title}
+              </h1>
+              <p className="text-slate-500 text-sm">{step.subtitle}</p>
+            </div>
 
             {/* Progress Bar */}
-            <div className="mb-8 h-1.5 w-full bg-slate-100 rounded-full overflow-hidden">
-              <motion.div
-                className="h-full bg-teal-600 rounded-full"
-                initial={false}
-                animate={{ width: `${Math.max(progressPct, 8)}%` }}
-                transition={{ duration: 0.5, ease: "easeInOut" }}
+            <div className="mb-8 h-2 w-full bg-slate-100 rounded-full overflow-hidden">
+              <div
+                className="h-full bg-brand-teal rounded-full transition-all duration-500 ease-out"
+                style={{ width: `${Math.max(progressPct, 8)}%` }}
               />
             </div>
 
             {/* Form */}
             <form onSubmit={handleSubmit(onSubmit)}>
               <div className="min-h-[260px]">
-                <AnimatePresence mode="wait">
                   {/* STEP 1 */}
                   {currentStep === 1 && (
-                    <motion.div
-                      key="s1"
-                      initial={{ opacity: 0, x: 24 }}
-                      animate={{ opacity: 1, x: 0 }}
-                      exit={{ opacity: 0, x: -24 }}
-                      transition={{ duration: 0.25, ease: "easeOut" }}
-                      className="space-y-5"
-                    >
+                    <AnimeStep stepKey={1}>
+                      <div className="space-y-5">
                       <InputField label="Medical Speciality" id="speciality" error={errors.speciality?.message}>
                         <input
                           id="speciality"
@@ -324,19 +319,14 @@ export default function OnboardingPage() {
                           />
                         </InputField>
                       </div>
-                    </motion.div>
+                      </div>
+                    </AnimeStep>
                   )}
 
                   {/* STEP 2 */}
                   {currentStep === 2 && (
-                    <motion.div
-                      key="s2"
-                      initial={{ opacity: 0, x: 24 }}
-                      animate={{ opacity: 1, x: 0 }}
-                      exit={{ opacity: 0, x: -24 }}
-                      transition={{ duration: 0.25, ease: "easeOut" }}
-                      className="space-y-5"
-                    >
+                    <AnimeStep stepKey={2}>
+                      <div className="space-y-5">
                       <InputField label="Primary Clinic / Hospital Name" id="clinic_name" error={errors.clinic_name?.message}>
                         <input
                           id="clinic_name"
@@ -361,19 +351,14 @@ export default function OnboardingPage() {
                           placeholder="+91 98765 43210"
                         />
                       </InputField>
-                    </motion.div>
+                    </div>
+                    </AnimeStep>
                   )}
 
                   {/* STEP 3 */}
                   {currentStep === 3 && (
-                    <motion.div
-                      key="s3"
-                      initial={{ opacity: 0, x: 24 }}
-                      animate={{ opacity: 1, x: 0 }}
-                      exit={{ opacity: 0, x: -24 }}
-                      transition={{ duration: 0.25, ease: "easeOut" }}
-                      className="space-y-4"
-                    >
+                    <AnimeStep stepKey={3}>
+                      <div className="space-y-4">
                       <InputField label="Professional Bio" id="bio" error={errors.bio?.message}>
                         <textarea
                           id="bio"
@@ -386,9 +371,9 @@ export default function OnboardingPage() {
                       <p className="text-xs text-slate-400">
                         Minimum 10 characters. Visible to patients on your public profile.
                       </p>
-                    </motion.div>
+                      </div>
+                    </AnimeStep>
                   )}
-                </AnimatePresence>
               </div>
 
               {/* Navigation */}
@@ -411,7 +396,7 @@ export default function OnboardingPage() {
                   <button
                     type="button"
                     onClick={nextStep}
-                    className="inline-flex items-center gap-2 bg-teal-600 hover:bg-teal-700 text-white px-6 py-2.5 rounded-full text-sm font-semibold transition-all hover:scale-105 active:scale-95 shadow-[0_0_20px_rgba(13,148,136,0.25)]"
+                    className="inline-flex items-center gap-2 bg-brand-teal hover:bg-brand-darkteal text-white px-6 py-2.5 rounded-full text-sm font-semibold transition-all hover:-translate-y-0.5 shadow-[0_10px_20px_-10px_rgba(8,145,178,0.5)]"
                   >
                     Continue
                     <ArrowRight className="w-4 h-4" />
@@ -420,7 +405,7 @@ export default function OnboardingPage() {
                   <button
                     type="submit"
                     disabled={isSubmitting}
-                    className="inline-flex items-center gap-2 bg-teal-600 hover:bg-teal-700 text-white px-6 py-2.5 rounded-full text-sm font-semibold transition-all hover:scale-105 active:scale-95 shadow-[0_0_20px_rgba(13,148,136,0.25)] disabled:opacity-60 disabled:cursor-not-allowed disabled:hover:scale-100"
+                    className="inline-flex items-center gap-2 bg-brand-teal hover:bg-brand-darkteal text-white px-6 py-2.5 rounded-full text-sm font-semibold transition-all hover:-translate-y-0.5 shadow-[0_10px_20px_-10px_rgba(8,145,178,0.5)] disabled:opacity-60 disabled:cursor-not-allowed disabled:hover:translate-y-0"
                   >
                     {isSubmitting ? (
                       <>

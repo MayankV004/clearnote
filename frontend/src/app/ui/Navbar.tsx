@@ -3,19 +3,17 @@
 import React from "react";
 import Link from "next/link";
 import { useAuth, UserButton } from "@clerk/nextjs";
-import { Stethoscope } from "lucide-react";
+import Image from "next/image";
 
 export function Navbar() {
   const { isLoaded, isSignedIn } = useAuth();
   return (
     <header className="fixed top-0 left-0 right-0 z-50 border-b border-slate-200 bg-white/80 backdrop-blur-md">
-      <div className="mx-auto flex max-w-7xl items-center justify-between px-6 py-4">
+      <div className="mx-auto flex max-w-screen-2xl items-center justify-between px-6 py-4">
         {/* Logo */}
-        <Link href="/" className="flex items-center gap-2 group">
-          <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-teal-50 text-teal-600 group-hover:bg-teal-100 transition-colors">
-            <Stethoscope className="h-6 w-6" />
-          </div>
-          <span className="text-xl font-bold text-slate-900 tracking-tight">ClearNote</span>
+        <Link href="/" className="flex items-center gap-3 group">
+          <Image src="/logo.png" alt="ClearNote Logo" width={44} height={44} className="drop-shadow-lg transition-transform group-hover:scale-105" />
+          <span className="text-2xl font-extrabold tracking-tight text-brand-teal">ClearNote</span>
         </Link>
 
         {/* Desktop Nav Actions */}

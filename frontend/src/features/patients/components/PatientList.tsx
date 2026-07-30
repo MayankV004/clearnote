@@ -24,7 +24,7 @@ function PatientRowSkeleton() {
 
 export function PatientListSkeleton() {
   return (
-    <ul className="divide-y divide-slate-100">
+    <ul className="divide-y divide-cyan-100/50">
       {Array.from({ length: 5 }).map((_, i) => (
         <PatientRowSkeleton key={i} />
       ))}
@@ -61,16 +61,16 @@ export default function PatientList({ onAddPatient }: PatientListProps) {
   if (recentPatients.length === 0) {
     return (
       <div className="flex flex-col items-center justify-center py-16 text-center px-6">
-        <div className="w-14 h-14 rounded-2xl bg-slate-100 flex items-center justify-center mb-4">
-          <Users className="w-7 h-7 text-slate-400" />
+        <div className="w-16 h-16 rounded-3xl bg-white/50 flex items-center justify-center mb-5 border border-cyan-100/50 shadow-sm">
+          <Users className="w-8 h-8 text-cyan-400" />
         </div>
-        <h3 className="font-semibold text-slate-700">No patients yet</h3>
-        <p className="mt-1 text-sm text-slate-400 max-w-xs">
-          Add your first patient to get started with consultations and notes.
+        <h3 className="font-bold text-slate-700 text-lg">No patients yet</h3>
+        <p className="mt-2 text-sm text-slate-500 max-w-xs leading-relaxed">
+          Add your first patient to get started with AI-powered consultations and notes.
         </p>
         <button
           onClick={onAddPatient}
-          className="mt-5 inline-flex items-center gap-2 px-5 py-2 rounded-full bg-teal-600 text-white text-sm font-semibold hover:bg-teal-700 transition-colors"
+          className="mt-6 inline-flex items-center gap-2 px-6 py-2.5 rounded-full bg-brand-teal text-white text-sm font-semibold hover:from-cyan-500 hover:to-green-500 transition-all shadow-sm hover:shadow-md hover:-translate-y-0.5"
         >
           <Plus className="w-4 h-4" /> Add First Patient
         </button>
@@ -79,35 +79,35 @@ export default function PatientList({ onAddPatient }: PatientListProps) {
   }
 
   return (
-    <ul className="divide-y divide-slate-100">
+    <ul className="divide-y divide-cyan-100/50">
       {recentPatients.map((patient) => (
         <li key={patient.id}>
           <Link
             href={`/dashboard/patients/${patient.id}`}
-            className="flex items-center gap-4 px-6 py-4 hover:bg-slate-50 transition-colors group"
+            className="flex items-center gap-4 px-6 py-4 hover:bg-white/30 transition-all duration-200 group"
           >
-            <div className="w-10 h-10 rounded-full bg-teal-100 text-teal-700 text-sm font-bold flex items-center justify-center flex-shrink-0">
+            <div className="w-10 h-10 rounded-full bg-cyan-100 text-cyan-700 text-sm font-bold flex items-center justify-center flex-shrink-0 shadow-sm">
               {getInitials(patient.name)}
             </div>
 
             <div className="flex-1 min-w-0">
-              <p className="font-semibold text-slate-900 truncate group-hover:text-teal-700 transition-colors">
+              <p className="font-semibold text-slate-900 truncate group-hover:text-cyan-700 transition-colors">
                 {patient.name}
               </p>
-              <p className="text-xs text-slate-400 mt-0.5 truncate">
+              <p className="text-xs text-slate-500 mt-0.5 truncate">
                 {[patient.phone, patient.email].filter(Boolean).join(" · ") ||
                   "No contact info"}
               </p>
             </div>
 
             <div className="text-right flex-shrink-0">
-              <div className="flex items-center gap-1 text-xs text-slate-400">
-                <Clock className="w-3 h-3" />
+              <div className="flex items-center gap-1 text-xs text-slate-400 font-medium">
+                <Clock className="w-3.5 h-3.5" />
                 {timeAgo(patient.created_at)}
               </div>
             </div>
 
-            <ChevronRight className="w-4 h-4 text-slate-300 group-hover:text-teal-500 transition-colors flex-shrink-0" />
+            <ChevronRight className="w-4 h-4 text-cyan-300 group-hover:text-cyan-600 transition-colors flex-shrink-0 group-hover:translate-x-0.5" />
           </Link>
         </li>
       ))}
