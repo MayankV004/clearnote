@@ -17,6 +17,9 @@ import {
   Plus,
   Trash2,
   RefreshCw,
+  Share2,
+  Copy,
+  Check,
 } from "lucide-react";
 import { useConsultation } from "@/features/consultations/api/useConsultation";
 import {
@@ -48,6 +51,8 @@ export default function ConsultationReviewPage() {
   const updateMutation = useUpdateConsultation(id);
 
   const [isEditing, setIsEditing] = useState(false);
+  const [isShareModalOpen, setIsShareModalOpen] = useState(false);
+  const [isCopied, setIsCopied] = useState(false);
   const [editData, setEditData] = useState<ConsultationUpdatePayload | null>(
     null,
   );
@@ -210,6 +215,14 @@ export default function ConsultationReviewPage() {
                           <RefreshCw className="w-4 h-4" />
                         )}
                         Update Prescription
+                      </button>
+                      <button
+                        onClick={() => setIsShareModalOpen(true)}
+                        className="inline-flex items-center gap-2 px-4 py-2 bg-indigo-50 text-indigo-700 rounded-xl font-semibold text-sm hover:bg-indigo-100 transition-colors border border-indigo-200"
+                        title="Share prescription via a unique link"
+                      >
+                        <Share2 className="w-4 h-4" />
+                        Share Prescription
                       </button>
                     </div>
                   ) : (
@@ -632,6 +645,55 @@ export default function ConsultationReviewPage() {
           </div>
         </div>
       </main>
+
+      {isShareModalOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/50 backdrop-blur-sm">
+          <div className="bg-white rounded-2xl shadow-xl w-full max-w-md overflow-hidden animate-in fade-in zoom-in duration-200">
+            <div className="flex items-center justify-between p-4 border-b border-slate-100">
+              <h3 className="font-bold text-slate-900">Share Prescription</h3>
+              <button
+                onClick={() => setIsShareModalOpen(false)}
+                className="p-1 text-slate-400 hover:text-slate-600 rounded-lg hover:bg-slate-100 transition-colors"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+            <div className="p-6">
+              <p className="text-sm text-slate-600 mb-4 font-medium">
+                Copy unique link
+              </p>
+              <div className="flex items-center gap-2">
+                <div className="flex-1 px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-sm text-slate-600 font-mono truncate select-all" title={`https://such-upstate-cornmeal.ngrok-free.dev/consultations/public/${id}/prescription`}>
+                  {`https://such-upstate-cornmeal.ngrok-free.dev/consultations/public/${id}/prescription`}
+                </div>
+                <button
+                  onClick={() => {
+                    navigator.clipboard.writeText(`https://such-upstate-cornmeal.ngrok-free.dev/consultations/public/${id}/prescription`);
+                    toast.success("Share link copied to clipboard!");
+                    setIsCopied(true);
+                    setTimeout(() => setIsCopied(false), 2000);
+                  }}
+                  className={`px-4 py-2 text-white rounded-xl text-sm font-semibold transition-colors shrink-0 flex items-center gap-2 ${
+                    isCopied ? "bg-emerald-600 hover:bg-emerald-700" : "bg-slate-900 hover:bg-slate-800"
+                  }`}
+                >
+                  {isCopied ? (
+                    <>
+                      <Check className="w-4 h-4" />
+                      Copied!
+                    </>
+                  ) : (
+                    <>
+                      <Copy className="w-4 h-4" />
+                      Copy
+                    </>
+                  )}
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
