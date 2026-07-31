@@ -18,7 +18,7 @@ from app.services.consultation_service import ConsultationService
 from app.services.pdf_service import pdf_service
 from app.services.s3_service import s3_service
 from app.core.config import settings
-from fastapi.responses import JSONResponse
+from fastapi.responses import JSONResponse, RedirectResponse
 from app.services.rag_service import rag_service
 from app.services.notification_service import notification_service
 router = APIRouter(prefix="/consultations", tags=["consultations"])
@@ -26,6 +26,26 @@ router = APIRouter(prefix="/consultations", tags=["consultations"])
 
 # ── IMPORTANT: Static routes must be declared before /{consultation_id} ───────
 # Otherwise FastAPI matches 'ingest-guidelines' as a UUID and returns 422.
+
+@router.get("/public/{consultation_id}/prescription", summary="Publicly accessible endpoint for a prescription PDF")
+async def get_public_prescription(
+    consultation_id: UUID,
+    db: AsyncSession = Depends(get_db),
+):
+    """
+    Publicly accessible endpoint to get the presigned URL for a prescription PDF.
+    Using consultation_id as the unique token since it's a UUID v4.
+    """
+    stmt = select(Consultation).where(Consultation.id == consultation_id)
+    consultation = await db.scalar(stmt)
+    if not consultation:
+        return JSONResponse(status_code=404, content={"message": "Consultation not found."})
+        
+    if not consultation.prescription_s3_key:
+        return JSONResponse(status_code=404, content={"message": "Prescription not generated yet."})
+
+    presigned_url = await s3_service.generate_presigned_url(consultation.prescription_s3_key, bucket_name=settings.PDF_BUCKET_NAME)
+    return RedirectResponse(url=presigned_url)
 
 @router.post("/ingest-guidelines", summary="Ingest a clinical guidelines PDF")
 async def ingest_guidelines_endpoint(
