@@ -34,7 +34,7 @@ class TestCascadeS3Deletion:
             doctor_id=doctor.id,
             patient_id=patient.id,
             status=ConsultationStatus.COMPLETE,
-            audio_s3_key=f"audio/{consultation_id_placeholder}.webm" if False else "audio/test-cascade-123.webm",
+            audio_s3_key="audio/test-cascade-123.webm",
             prescription_s3_key="prescriptions/test-cascade-123.pdf",
         )
         db_session.add(consultation)
