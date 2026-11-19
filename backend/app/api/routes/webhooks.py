@@ -5,7 +5,7 @@ from app.core.config import settings
 from app.api.dependencies.db import get_db
 from app.models.doctor import Doctor
 from sqlalchemy.dialects.postgresql import insert
-from app.core.logger import logger
+from app.core.logger import logger, mask_email, mask_phone
 
 router = APIRouter(prefix="/webhooks", tags=["webhooks"])
 
@@ -45,7 +45,7 @@ async def clerk_webhook(request: Request, db: AsyncSession = Depends(get_db)):
 
         from app.services.doctor_service import DoctorService
         await DoctorService.create_doctor_from_clerk(db, clerk_id, email, name)
-        logger.info(f"Successfully processed clerk webhook: created user {email}")
+        logger.info(f"Successfully processed clerk webhook: created user {mask_email(email)}")
 
     return {"status": "ok"}
 
@@ -58,7 +58,7 @@ async def twilio_webhook(request: Request):
         message_status = data.get("MessageStatus")
         message_sid = data.get("MessageSid")
         to_number = data.get("To")
-        logger.info(f"Twilio Webhook: Message {message_sid} to {to_number} status is {message_status}")
+        logger.info(f"Twilio Webhook: Message {message_sid} to {mask_phone(to_number)} status is {message_status}")
     except Exception as e:
         logger.error(f"Error processing Twilio webhook: {e}")
     return {"status": "ok"}
@@ -73,7 +73,7 @@ async def sendgrid_webhook(request: Request):
             for event in events:
                 email = event.get("email")
                 event_type = event.get("event")
-                logger.info(f"SendGrid Webhook: Event '{event_type}' for email {email}")
+                logger.info(f"SendGrid Webhook: Event '{event_type}' for email {mask_email(email)}")
     except Exception as e:
         logger.error(f"Error processing SendGrid webhook: {e}")
     return {"status": "ok"}

@@ -82,7 +82,7 @@ class PatientService:
         await db.commit()
         await db.refresh(new_patient)
 
-        logger.info(f"Created new patient: {new_patient.name} for Doctor ID: {doctor_id}")
+        logger.info(f"Created new patient ID: {new_patient.id} for Doctor ID: {doctor_id}")
 
         from app.services.cache_service import key_stats
         # ── Invalidate patient list cache ─────────────────────────────────────
@@ -112,7 +112,7 @@ class PatientService:
         await db.commit()
         await db.refresh(patient)
 
-        logger.info(f"Updated patient: {patient.name} (ID: {patient_id}) for Doctor ID: {doctor_id}")
+        logger.info(f"Updated patient ID: {patient_id} for Doctor ID: {doctor_id}")
 
         # ── Invalidate caches ─────────────────────────────────────
         await cache.delete(key_patient(str(doctor_id), str(patient_id)))

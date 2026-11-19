@@ -24,3 +24,21 @@ def setup_logger():
     return logger
 
 logger = setup_logger()
+
+
+def mask_email(email: str | None) -> str:
+    """Mask email for HIPAA/privacy compliant logging: j***e@domain.com"""
+    if not email or "@" not in email:
+        return "***"
+    name_part, domain_part = email.split("@", 1)
+    if len(name_part) <= 1:
+        return f"*@{domain_part}"
+    return f"{name_part[0]}***{name_part[-1]}@{domain_part}"
+
+
+def mask_phone(phone: str | None) -> str:
+    """Mask phone number for HIPAA/privacy compliant logging: +1*****4567"""
+    if not phone or len(phone) < 8:
+        return "***"
+    return f"{phone[:2]}*****{phone[-4:]}"
+

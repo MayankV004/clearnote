@@ -1,7 +1,7 @@
 import httpx
 from typing import List
 from app.core.config import settings
-from app.core.logger import logger
+from app.core.logger import logger, mask_email, mask_phone
 from app.models.medication import Medication
 
 class NotificationService:
@@ -39,10 +39,10 @@ class NotificationService:
             async with httpx.AsyncClient() as client:
                 response = await client.post(url, headers=headers, json=payload, timeout=10.0)
                 response.raise_for_status()
-                logger.info(f"Prescription email sent successfully to {patient_email}")
+                logger.info(f"Prescription email sent successfully to {mask_email(patient_email)}")
                 return True
         except Exception as e:
-            logger.error(f"Failed to send prescription email to {patient_email}: {e}")
+            logger.error(f"Failed to send prescription email to {mask_email(patient_email)}: {e}")
             return False
 
     @staticmethod
@@ -80,10 +80,10 @@ class NotificationService:
                     timeout=10.0
                 )
                 response.raise_for_status()
-                logger.info(f"Medication reminder SMS sent to {patient_phone}")
+                logger.info(f"Medication reminder SMS sent to {mask_phone(patient_phone)}")
                 return True
         except Exception as e:
-            logger.error(f"Failed to send medication reminder SMS to {patient_phone}: {e}")
+            logger.error(f"Failed to send medication reminder SMS to {mask_phone(patient_phone)}: {e}")
             return False
 
 notification_service = NotificationService()

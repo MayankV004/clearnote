@@ -6,6 +6,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 ### Security
+- **TICKET-01C (`SEC-06`)**: Implemented HIPAA PHI sanitization in application logging (`mask_email`, `mask_phone`). Removed plaintext patient names, email addresses, and phone numbers from logs across `patient_service`, `notification_service`, and `webhooks`.
 - **TICKET-01B (`SEC-03`)**: Implemented `set_rls_doctor_id` parameter hook in `get_current_doctor` (covering both cache hits and misses) and `get_current_doctor_ws`, executing parameterized `set_config('app.current_doctor_id', :doctor_id, true)` to enforce PostgreSQL Row-Level Security at the database layer.
 - **TICKET-04 (`SEC-05`)**: Replaced naked UUID lookup on `GET /consultations/public/{id}/prescription` with HMAC-SHA256 signed access tokens with 7-day expiration, mitigating UUID enumeration attacks and securing public prescription sharing.
 - **TICKET-03 (`SEC-04`)**: Enforced tenant isolation in `POST /data-deletion/`, `POST /data-deletion/{id}/process`, and `GET /data-deletion/`. Doctors can now only request, process, or view data deletion records for their own verified patients.
