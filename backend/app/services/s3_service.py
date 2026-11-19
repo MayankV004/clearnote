@@ -88,7 +88,13 @@ class S3Service:
                 logger.info(
                     f"S3Service: bucket '{bucket_name}' not found — creating it."
                 )
-                self.client.create_bucket(Bucket=bucket_name)
+                if settings.AWS_REGION == "us-east-1" or settings.AWS_ENDPOINT_URL:
+                    self.client.create_bucket(Bucket=bucket_name)
+                else:
+                    self.client.create_bucket(
+                        Bucket=bucket_name,
+                        CreateBucketConfiguration={"LocationConstraint": settings.AWS_REGION},
+                    )
                 logger.info(f"S3Service: bucket '{bucket_name}' created.")
 
         try:
