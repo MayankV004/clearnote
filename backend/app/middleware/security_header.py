@@ -15,7 +15,18 @@ class SecurityHeadersMiddleware(BaseHTTPMiddleware):
         response.headers["X-XSS-Protection"] = "1; mode=block"
         response.headers["Referrer-Policy"] = "strict-origin-when-cross-origin"
         response.headers["Strict-Transport-Security"] = "max-age=31536000; includeSubDomains"
-        response.headers["Content-Security-Policy"] = "default-src 'self';"
+        
+        # Calibrated CSP whitelisting Clerk, S3 storage, and Deepgram WebSocket
+        csp_directives = [
+            "default-src 'self'",
+            "script-src 'self' 'unsafe-inline' https://*.clerk.accounts.dev https://clerk.dev",
+            "connect-src 'self' https://*.clerk.accounts.dev https://clerk.dev wss://api.deepgram.com https://*.amazonaws.com https://*.s3.amazonaws.com",
+            "img-src 'self' data: https://*.amazonaws.com https://*.s3.amazonaws.com https://img.clerk.com",
+            "style-src 'self' 'unsafe-inline'",
+            "font-src 'self' data:",
+            "frame-src 'self' https://*.clerk.accounts.dev",
+        ]
+        response.headers["Content-Security-Policy"] = "; ".join(csp_directives) + ";"
         return response
 
 

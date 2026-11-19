@@ -19,10 +19,10 @@ from app.api.routes.patients import router as patients_router
 from app.api.routes.doctors import router as doctors_router
 from app.api.routes.consultations import router as consultations_router
 from app.api.routes.data_deletion import router as data_deletion_router
-from slowapi import Limiter , _rate_limit_exceeded_handler
+from slowapi import _rate_limit_exceeded_handler
 from slowapi.errors import RateLimitExceeded
-from slowapi.util import get_remote_address
 from slowapi.middleware import SlowAPIMiddleware
+from app.core.limiter import limiter
 
 from app.middleware.security_header import SecurityHeadersMiddleware, RequestLoggingMiddleware
 
@@ -30,7 +30,6 @@ app = FastAPI(title="ClearNote API")
 
 
 # Rate Limiter Initialization
-limiter = Limiter(key_func=get_remote_address , default_limits=["60/minute"])
 app.state.limiter = limiter
 app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
 app.add_middleware(SlowAPIMiddleware)

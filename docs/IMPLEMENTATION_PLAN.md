@@ -147,11 +147,11 @@ flowchart TD
 
 ---
 
-### [ ] TICKET-01E: Route Rate Limiting & CSP Calibration
+### [x] TICKET-01E: Route Rate Limiting & CSP Calibration (COMPLETED)
 - **Priority**: P1 (Security / Hardening)
 - **Gap Reference**: `SEC-08`
 - **Scope**: Apply rate limits to public/sensitive endpoints (`ingest_guidelines_endpoint`, `get_public_prescription`, `data_deletion`) and calibrate CSP headers for Clerk, S3, and Deepgram.
-- **Files Affected**: `backend/app/middleware/security_header.py`, `backend/app/api/routes/`
+- **Files Affected**: `backend/app/middleware/security_header.py`, `backend/app/api/routes/consultations.py`, `backend/app/api/routes/data_deletion.py`, `backend/app/core/limiter.py`, `backend/tests/unit/test_security_headers.py`
 
 ---
 

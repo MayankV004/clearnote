@@ -1,12 +1,13 @@
 import uuid
 from typing import List
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, status, Request
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.future import select
 from datetime import datetime, timezone
 
 from app.api.dependencies.db import get_db
 from app.api.dependencies.auth import get_current_doctor
+from app.core.limiter import limiter
 from app.models.doctor import Doctor
 from app.models.patient import Patient
 from app.models.data_deletion import DataDeletionRequest, DataDeletionStatus
@@ -15,7 +16,9 @@ from app.schemas.data_deletion import DataDeletionRequestCreate, DataDeletionReq
 router = APIRouter(prefix="/data-deletion", tags=["Data Deletion"])
 
 @router.post("/", response_model=DataDeletionRequestResponse, status_code=status.HTTP_201_CREATED)
+@limiter.limit("10/minute")
 async def request_data_deletion(
+    request: Request,
     req: DataDeletionRequestCreate,
     db: AsyncSession = Depends(get_db),
     current_doctor: Doctor = Depends(get_current_doctor)

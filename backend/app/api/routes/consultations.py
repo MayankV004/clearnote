@@ -2,7 +2,7 @@
 from typing import List
 from uuid import UUID
 from pydantic import BaseModel
-from fastapi import APIRouter, Depends, WebSocket, WebSocketDisconnect, BackgroundTasks, status, UploadFile, File, Query
+from fastapi import APIRouter, Depends, WebSocket, WebSocketDisconnect, BackgroundTasks, status, UploadFile, File, Query, Request
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.future import select
 from sqlalchemy.orm import selectinload
@@ -10,6 +10,7 @@ from sqlalchemy.orm import selectinload
 from app.api.dependencies.auth import get_current_doctor, get_current_doctor_ws
 from fastapi.exceptions import WebSocketException
 from app.core.security import create_prescription_token, verify_prescription_token
+from app.core.limiter import limiter
 from app.api.dependencies.db import get_db
 from app.core.exceptions import ConsultationNotFoundException, PatientNotOwnedException
 from app.core.logger import logger
@@ -30,7 +31,9 @@ router = APIRouter(prefix="/consultations", tags=["consultations"])
 # Otherwise FastAPI matches 'ingest-guidelines' as a UUID and returns 422.
 
 @router.get("/public/{consultation_id}/prescription", summary="Publicly accessible endpoint for a prescription PDF")
+@limiter.limit("10/minute")
 async def get_public_prescription(
+    request: Request,
     consultation_id: UUID,
     token: str = Query(..., description="Signed token required for prescription access"),
     db: AsyncSession = Depends(get_db),
@@ -54,7 +57,9 @@ async def get_public_prescription(
     return RedirectResponse(url=presigned_url)
 
 @router.post("/ingest-guidelines", summary="Ingest a clinical guidelines PDF")
+@limiter.limit("5/minute")
 async def ingest_guidelines_endpoint(
+    request: Request,
     source_name: str,
     file: UploadFile = File(..., description="PDF file to ingest"),
     db: AsyncSession = Depends(get_db),

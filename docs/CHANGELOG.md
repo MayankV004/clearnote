@@ -6,6 +6,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 ### Security
+- **TICKET-01E (`SEC-08`)**: Calibrated Content-Security-Policy (CSP) header in `SecurityHeadersMiddleware` to explicitly whitelist Clerk authentication domains, S3 presigned asset delivery, and Deepgram WebSocket endpoints. Applied SlowAPI rate limiting to public prescription endpoints (10/min), guideline PDF ingestion (5/min), and patient data deletion requests (10/min).
 - **TICKET-01D (`SEC-07`)**: Implemented prompt injection defenses with structural XML tag delimiters (`<untrusted_clinical_dialogue>`, `<guideline_context>`, `<patient_context>`) in `soap_extraction.py` and `drug_interaction.py`. Added explicit system instructions to ignore meta-commands and treat dialogue strictly as untrusted clinical data.
 - **TICKET-01C (`SEC-06`)**: Implemented HIPAA PHI sanitization in application logging (`mask_email`, `mask_phone`). Removed plaintext patient names, email addresses, and phone numbers from logs across `patient_service`, `notification_service`, and `webhooks`.
 - **TICKET-01B (`SEC-03`)**: Implemented `set_rls_doctor_id` parameter hook in `get_current_doctor` (covering both cache hits and misses) and `get_current_doctor_ws`, executing parameterized `set_config('app.current_doctor_id', :doctor_id, true)` to enforce PostgreSQL Row-Level Security at the database layer.
