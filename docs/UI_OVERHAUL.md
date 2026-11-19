@@ -69,7 +69,7 @@ graph TD
 | **RT-03** | `/dashboard/consultations/[id]` | Split-Screen Consultation Reviewer | Shipped | Phase B Ticket 3 |
 | **RT-04** | `/dashboard/patients/[id]` | Patient Profile & History | Shipped | Phase B Ticket 4 |
 | **RT-05** | `/onboarding` | Doctor Profile & Signature Wizard | Shipped | Phase B Ticket 5 |
-| **RT-06** | `/dashboard/settings` | Doctor Practice Settings | Not started | Phase B Ticket 6 |
+| **RT-06** | `/dashboard/settings` | Doctor Practice Settings | **Shipped** | Overhauled to Quiet Confidence tokens, 2-column layout, digital signature drawing & upload, DEA/license stamp, HIPAA BAA credentials |
 | **RT-07** | `/_not-found`, `/error` | System Error & Offline States | Not started | Phase B Ticket 7 |
 | **RT-08** | `/` | Clinical Landing & Value Proof | Not started | Phase B Ticket 8 |
 
