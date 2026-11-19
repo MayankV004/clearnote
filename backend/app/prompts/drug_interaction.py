@@ -6,6 +6,8 @@ retrieved guideline chunks as RAG context.
 """
 from langchain_core.prompts import ChatPromptTemplate
 
+PROMPT_VERSION = "2026.11.1"
+
 _DRUG_SYSTEM = """\
 You are a clinical pharmacology assistant. Your job is to assess the \
 potential interaction between two drugs using ONLY the provided guideline \

@@ -21,3 +21,4 @@ class SOAPExtractionResult(BaseModel):
     diagnoses: List[DiagnosisSchema] = Field(default_factory=list, description="List of diagnoses established.")
     allergies: List[str] = Field(default_factory=list, description="List of patient allergies mentioned.")
     confidence: float = Field(..., description="A confidence score between 0.0 and 1.0 regarding the accuracy of the extraction.")
+    prompt_version: Optional[str] = Field(default="2026.11.1", description="Prompt template version used for extraction.")

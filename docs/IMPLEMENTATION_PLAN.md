@@ -372,12 +372,13 @@ flowchart TD
 
 ---
 
-### TICKET-18: Clinical Golden Benchmark Eval Harness
+### [x] TICKET-18: Clinical Golden Benchmark Eval Harness (COMPLETED)
 - **Priority**: P2 (Quality & AI)
 - **Gap Reference**: `AI-05`
-- **Scope**: Create an automated clinical evaluation dataset of 20 annotated transcripts (MTSamples) measuring extraction precision, recall, and interaction detection.
+- **Scope**: Create an automated clinical evaluation dataset of annotated transcripts measuring extraction precision, recall, and interaction detection.
 - **Files Affected**:
   - `backend/tests/evals/` (new directory)
+  - `backend/tests/evals/golden_dataset.py` (new)
   - `backend/tests/evals/test_clinical_evals.py` (new)
 - **Dependencies**: None.
 - **Acceptance Criteria**:

@@ -3,7 +3,7 @@ from groq import AsyncGroq
 from app.core.config import settings
 from app.core.logger import logger
 from app.schemas.llm import SOAPExtractionResult
-from app.prompts.soap_extraction import SOAP_EXTRACTION_PROMPT
+from app.prompts.soap_extraction import SOAP_EXTRACTION_PROMPT, PROMPT_VERSION
 
 
 class LLMService:
@@ -49,6 +49,8 @@ class LLMService:
                 raise ValueError("Received empty content from Groq API")
 
             parsed_data = json.loads(content)
+            if "prompt_version" not in parsed_data:
+                parsed_data["prompt_version"] = PROMPT_VERSION
             result = SOAPExtractionResult(**parsed_data)
             logger.info("Successfully extracted structured SOAP data using Groq.")
             return result
@@ -64,6 +66,7 @@ class LLMService:
                 diagnoses=[],
                 allergies=[],
                 confidence=0.0,
+                prompt_version=PROMPT_VERSION,
             )
 
 

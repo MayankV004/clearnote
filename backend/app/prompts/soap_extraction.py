@@ -6,6 +6,8 @@ diagnoses, and allergies from a raw doctor-patient consultation transcript.
 """
 from langchain_core.prompts import ChatPromptTemplate
 
+PROMPT_VERSION = "2026.11.1"
+
 _SOAP_SYSTEM = """\
 You are an expert clinical documentation assistant. Your job is to convert \
 a raw doctor-patient consultation transcript into a structured SOAP note \
