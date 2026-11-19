@@ -20,10 +20,10 @@ Usage (singleton at module bottom):
 
 import tempfile
 import os
+import asyncio
 
 import boto3
 from botocore.exceptions import BotoCoreError, ClientError
-from starlette.concurrency import run_in_threadpool
 
 from app.core.config import settings
 from app.core.logger import logger
@@ -98,7 +98,7 @@ class S3Service:
                 logger.info(f"S3Service: bucket '{bucket_name}' created.")
 
         try:
-            await run_in_threadpool(_check_and_create)
+            await asyncio.to_thread(_check_and_create)
             setattr(self, verified_flag_attr, True)
         except (BotoCoreError, ClientError) as exc:
             logger.error(f"S3Service: could not ensure bucket exists – {exc}")
@@ -135,7 +135,7 @@ class S3Service:
             )
 
         try:
-            await run_in_threadpool(_upload)
+            await asyncio.to_thread(_upload)
             logger.info(f"S3Service: upload complete – {key}")
             return key
         except (BotoCoreError, ClientError) as exc:
@@ -169,7 +169,7 @@ class S3Service:
             )
 
         try:
-            await run_in_threadpool(_upload)
+            await asyncio.to_thread(_upload)
             logger.info(f"S3Service: upload complete – {key}")
             return key
         except (BotoCoreError, ClientError) as exc:
@@ -203,7 +203,7 @@ class S3Service:
             )
 
         try:
-            await run_in_threadpool(_upload)
+            await asyncio.to_thread(_upload)
             logger.info(f"S3Service: upload complete – {key}")
             return key
         except (BotoCoreError, ClientError) as exc:
@@ -229,7 +229,7 @@ class S3Service:
                 f"S3Service: downloading s3://{settings.AUDIO_BUCKET_NAME}/{s3_key}"
             )
 
-            await run_in_threadpool(
+            await asyncio.to_thread(
                 self.client.download_file,
                 settings.AUDIO_BUCKET_NAME,
                 s3_key,
@@ -262,7 +262,7 @@ class S3Service:
             )
 
         try:
-            await run_in_threadpool(_delete)
+            await asyncio.to_thread(_delete)
             logger.info(f"S3Service: deleted s3://{target_bucket}/{s3_key}")
         except (BotoCoreError, ClientError) as exc:
             # Log but don't raise – a failed delete is not worth crashing the pipeline
@@ -300,7 +300,7 @@ class S3Service:
             )
 
         try:
-            url = await run_in_threadpool(_presign)
+            url = await asyncio.to_thread(_presign)
             logger.info(f"S3Service: generated presigned URL for {s3_key}")
             return url
         except (BotoCoreError, ClientError) as exc:

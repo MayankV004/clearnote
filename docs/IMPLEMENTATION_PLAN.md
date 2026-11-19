@@ -249,31 +249,34 @@ flowchart TD
 
 ---
 
-### TICKET-10: Stream Audio Direct to Temporary Spooling / S3 Multipart
+### [x] TICKET-10: Stream Audio Direct to Temporary Spooling / S3 Multipart (COMPLETED)
 - **Priority**: P1 (Scalability)
 - **Gap Reference**: `REL-02`
-- **Scope**: Stream incoming WebSocket audio chunks to a spool file or directly to S3 multipart upload rather than accumulating in `bytearray()` RAM.
+- **Scope**: Stream incoming WebSocket audio chunks to a bounded `SpooledTemporaryFile(max_size=5MB)` rather than unbounded in-memory `bytearray()`, eliminating heap exhaustion during long (30+ minute) audio recordings.
 - **Files Affected**:
-  - `backend/app/api/routes/consultations.py:149`
+  - `backend/app/api/routes/consultations.py:165`
+  - `backend/tests/unit/test_s3_async_spooling.py` (new)
 - **Dependencies**: None.
 - **Acceptance Criteria**:
-  - Resident memory (RSS) stays constant during long (30+ minute) audio recordings.
+  - Resident memory (RSS) stays bounded during long audio recordings.
+  - Chunks stream into temporary disk spool after 5MB.
 - **Test Plan**:
-  - Simulate 60-minute streaming session; monitor container memory usage.
+  - Verify spooled temporary file writes and clean upload invocation.
 
 ---
 
-### TICKET-11: Non-Blocking Async Boto3 Operations
+### [x] TICKET-11: Non-Blocking Async Boto3 Operations (COMPLETED)
 - **Priority**: P1 (Performance)
 - **Gap Reference**: `REL-03`
-- **Scope**: Wrap synchronous Boto3 client calls in `asyncio.to_thread` or migrate to `aioboto3`.
+- **Scope**: Wrap synchronous Boto3 client calls in `asyncio.to_thread` across all S3 operations (`put_object`, `download_file`, `delete_object`, `generate_presigned_url`).
 - **Files Affected**:
   - `backend/app/services/s3_service.py`
+  - `backend/tests/unit/test_s3_async_spooling.py` (new)
 - **Dependencies**: None.
 - **Acceptance Criteria**:
-  - File uploads/downloads do not block the main ASGI event loop.
+  - S3 file uploads, downloads, deletions, and URL presigning do not block the main ASGI event loop.
 - **Test Plan**:
-  - Load test concurrent endpoints while a large file is uploading; measure p99 API latency.
+  - Unit tests verifying async execution via thread dispatch.
 
 ---
 

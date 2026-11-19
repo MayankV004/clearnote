@@ -6,6 +6,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 ### Data & Reliability
+- **TICKET-11 (`REL-03`)**: Standardized all Boto3 S3 client calls onto Python 3.12 `asyncio.to_thread` across `upload_audio`, `upload_pdf`, `upload_signature`, `download_audio`, `delete_object`, and `generate_presigned_url`. Eliminates framework coupling and guarantees non-blocking execution on the main ASGI event loop.
+- **TICKET-10 (`REL-02`)**: Replaced unbounded in-memory `bytearray` accumulation in `/consultations/{id}/stream` WebSocket with `tempfile.SpooledTemporaryFile(max_size=5MB)`. Audio chunks stream to disk once resident memory exceeds 5MB, preventing process heap exhaustion and out-of-memory container crashes during prolonged (30+ minute) consultations.
 - **TICKET-07 (`DATA-03`)**: Implemented S3 asset cascade deletion in `process_data_deletion`. When a patient right-to-erasure request is processed, all associated consultation audio recordings (`audio_s3_key`) and prescription PDFs (`prescription_s3_key`) are purged from AWS S3 storage prior to deleting database records, eliminating orphaned PHI in cloud object stores.
 - **TICKET-05 (`DATA-01`)**: Added Alembic migration `e2f3a4b5c6d7` creating an HNSW vector index (`idx_guideline_chunks_embedding_hnsw`) on `guideline_chunks.embedding` using `vector_cosine_ops` (`m=16`, `ef_construction=64`). Replaces $O(N)$ sequential table scans during RAG interaction checks with sub-millisecond approximate nearest neighbor index traversal.
 

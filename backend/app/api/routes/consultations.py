@@ -1,4 +1,5 @@
 
+import tempfile
 from typing import List
 from uuid import UUID
 from pydantic import BaseModel
@@ -158,47 +159,51 @@ async def audio_stream(
 
     await websocket.accept()
 
-    audio_chunks = bytearray()
-    
     # We need a BackgroundTasks instance since WebSockets don't provide one automatically
     background_tasks = BackgroundTasks()
-    
-    try:
-        while True:
-            # Receive binary chunks from the client
-            data = await websocket.receive_bytes()
-            audio_chunks.extend(data)
-            
-    except WebSocketDisconnect:
-        logger.info(f"WebSocket disconnected for {consultation_id}. Total audio: {len(audio_chunks)} bytes.")
-        
-        # Connection closed - save and process the audio if we received any
-        if len(audio_chunks) > 0:
-            try:
-                await ConsultationService.save_audio_and_transcribe(
-                    db=db,
-                    consultation=consultation,
-                    audio_bytes=bytes(audio_chunks),
-                    background_tasks=background_tasks
-                )
-                # WebSockets skip standard HTTP response background tasks execution,
-                # so we must trigger them manually.
-                await background_tasks()
-            except Exception as exc:
-                logger.error(
-                    f"Failed to process audio for {consultation_id}: {exc}",
-                    exc_info=True,
-                )
+
+    # Spool incoming audio chunks to bounded tempfile (5MB in RAM, then disk spooling)
+    with tempfile.SpooledTemporaryFile(max_size=5 * 1024 * 1024, mode="w+b") as audio_spool:
+        total_audio_bytes = 0
+        try:
+            while True:
+                # Receive binary chunks from the client
+                data = await websocket.receive_bytes()
+                audio_spool.write(data)
+                total_audio_bytes += len(data)
+
+        except WebSocketDisconnect:
+            logger.info(f"WebSocket disconnected for {consultation_id}. Total audio: {total_audio_bytes} bytes.")
+
+            # Connection closed - save and process the audio if we received any
+            if total_audio_bytes > 0:
                 try:
-                    await db.refresh(consultation)
-                    consultation.status = ConsultationStatus.FAILED
-                    consultation.processing_error = str(exc)
-                    await db.commit()
-                    logger.info(f"Consultation {consultation_id}: marked FAILED after audio processing error.")
-                except Exception as commit_exc:
-                    logger.error(
-                        f"Could not save FAILED status for {consultation_id}: {commit_exc}"
+                    audio_spool.seek(0)
+                    audio_bytes = audio_spool.read()
+                    await ConsultationService.save_audio_and_transcribe(
+                        db=db,
+                        consultation=consultation,
+                        audio_bytes=audio_bytes,
+                        background_tasks=background_tasks
                     )
+                    # WebSockets skip standard HTTP response background tasks execution,
+                    # so we must trigger them manually.
+                    await background_tasks()
+                except Exception as exc:
+                    logger.error(
+                        f"Failed to process audio for {consultation_id}: {exc}",
+                        exc_info=True,
+                    )
+                    try:
+                        await db.refresh(consultation)
+                        consultation.status = ConsultationStatus.FAILED
+                        consultation.processing_error = str(exc)
+                        await db.commit()
+                        logger.info(f"Consultation {consultation_id}: marked FAILED after audio processing error.")
+                    except Exception as commit_exc:
+                        logger.error(
+                            f"Could not save FAILED status for {consultation_id}: {commit_exc}"
+                        )
 
 @router.post("/{consultation_id}/approve", response_model=ConsultationResponse, summary="Approve clinical documentation and mark complete")
 async def approve_consultation(
