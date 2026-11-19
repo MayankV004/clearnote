@@ -1,10 +1,13 @@
 "use client";
 
-import { useEffect } from "react";
-import { Mic, Square, Loader2, AlertCircle, CheckCircle2 } from "lucide-react";
+import React, { useEffect } from "react";
+import { Mic, Square, Loader2, AlertCircle, CheckCircle2, X } from "lucide-react";
 import { useAudioRecorder } from "../hooks/useAudioRecorder";
 import { useConsultation } from "../api/useConsultation";
 import { useQueryClient } from "@tanstack/react-query";
+import { Button } from "@/components/ui/Button";
+import { Badge } from "@/components/ui/Badge";
+import Link from "next/link";
 import { toast } from "sonner";
 
 interface Props {
@@ -53,10 +56,8 @@ export function AudioRecorderModal({ isOpen, onClose, patientId }: Props) {
 
   const queryClient = useQueryClient();
 
-  // Handle closing completely
   const handleClose = () => {
     if (status === "complete") {
-      // Invalidate the consultations list so it immediately fetches the new one
       queryClient.invalidateQueries({ queryKey: ["consultations", patientId] });
     }
     reset();
@@ -66,135 +67,143 @@ export function AudioRecorderModal({ isOpen, onClose, patientId }: Props) {
   if (!isOpen) return null;
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
-      {/* Backdrop */}
-      <div 
-        className="absolute inset-0 bg-slate-900/40 backdrop-blur-sm" 
-        onClick={status === "idle" || status === "complete" || status === "error" ? handleClose : undefined} 
-      />
-      
-      {/* Modal */}
-      <div className="relative bg-white rounded-3xl shadow-xl border border-slate-200 w-full max-w-md overflow-hidden animate-in fade-in zoom-in-95 duration-200">
-        
-        {/* Header Area */}
-        <div className="p-6 text-center border-b border-slate-100 bg-slate-50/50">
-          <h3 className="font-bold text-slate-900">Consultation Recording</h3>
-          <p className="text-xs text-slate-500 mt-1">Live audio is streamed securely</p>
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-background/80 backdrop-blur-xs animate-in fade-in duration-150">
+      <div className="relative bg-card rounded-[var(--radius-lg)] shadow-xl border border-border w-full max-w-md overflow-hidden animate-in zoom-in-95 duration-150">
+        {/* Header */}
+        <div className="p-4 sm:p-5 flex items-center justify-between border-b border-border/60 bg-muted/20">
+          <div>
+            <h3 className="font-bold text-sm text-foreground flex items-center gap-2">
+              <Mic className="w-4 h-4 text-primary" />
+              Clinical Encounter Audio Capture
+            </h3>
+            <p className="text-[11px] text-muted-foreground font-mono mt-0.5">
+              Secure WebSocket live stream • Deepgram Nova-2
+            </p>
+          </div>
+          <button
+            type="button"
+            onClick={handleClose}
+            disabled={status === "recording"}
+            className="p-1 rounded-[var(--radius-xs)] text-muted-foreground hover:text-foreground hover:bg-muted transition-colors disabled:opacity-40"
+            aria-label="Close dialog"
+          >
+            <X className="w-4 h-4" />
+          </button>
         </div>
 
         {/* Content Area */}
-        <div className="p-8 flex flex-col items-center justify-center min-h-[260px]">
-          
+        <div className="p-6 sm:p-8 flex flex-col items-center justify-center min-h-[240px] text-center">
           {/* STATE: IDLE & STARTING */}
           {(status === "idle" || status === "starting") && (
-            <>
-              <div className="w-20 h-20 rounded-full bg-teal-50 flex items-center justify-center mb-6">
-                <Mic className="w-8 h-8 text-teal-600" />
+            <div className="space-y-4 w-full flex flex-col items-center">
+              <div className="w-16 h-16 rounded-full bg-primary/10 text-primary flex items-center justify-center">
+                <Mic className="w-7 h-7" />
               </div>
-              <button
+              <p className="text-xs text-muted-foreground max-w-xs">
+                Ensure microphone access is permitted. Click start when the patient consultation begins.
+              </p>
+              <Button
+                size="md"
                 onClick={startRecording}
-                disabled={status === "starting"}
-                className={`w-full py-3.5 rounded-2xl font-bold transition-all shadow-sm ${
-                  status === "starting"
-                    ? "bg-teal-400 text-white cursor-not-allowed shadow-none flex justify-center items-center gap-2"
-                    : "bg-teal-600 hover:bg-teal-700 text-white shadow-teal-200"
-                }`}
+                isLoading={status === "starting"}
+                className="w-full"
               >
-                {status === "starting" ? (
-                  <>
-                    <Loader2 className="w-5 h-5 animate-spin" />
-                    Initializing...
-                  </>
-                ) : (
-                  "Start Recording"
-                )}
-              </button>
-              <button 
-                onClick={handleClose} 
-                disabled={status === "starting"}
-                className="mt-4 text-sm font-medium text-slate-400 hover:text-slate-600 disabled:opacity-50 disabled:cursor-not-allowed"
-              >
-                Cancel
-              </button>
-            </>
+                Start Recording Encounter
+              </Button>
+            </div>
           )}
 
           {/* STATE: RECORDING */}
           {status === "recording" && (
-            <>
-              {/* Pulsating Ring */}
-              <div className="relative w-24 h-24 flex items-center justify-center mb-6">
-                <div className="absolute inset-0 rounded-full bg-red-100 animate-ping opacity-75" />
-                <div className="relative z-10 w-16 h-16 rounded-full bg-red-50 flex items-center justify-center shadow-sm">
-                  <div className="w-3 h-3 rounded-full bg-red-500 animate-pulse" />
+            <div className="space-y-5 w-full flex flex-col items-center">
+              <div className="relative w-20 h-20 flex items-center justify-center">
+                <div className="absolute inset-0 rounded-full bg-destructive/20 animate-ping opacity-75" />
+                <div className="relative z-10 w-14 h-14 rounded-full bg-destructive/10 text-destructive flex items-center justify-center">
+                  <div className="w-3.5 h-3.5 rounded-full bg-destructive animate-pulse" />
                 </div>
               </div>
 
-              <div className="text-3xl font-mono text-slate-900 font-light mb-8">
+              <div className="text-3xl font-mono text-foreground font-bold tracking-tight">
                 {formatDuration(duration)}
               </div>
 
-              <button
+              <p className="text-xs text-muted-foreground font-mono">
+                Audio streaming securely to transcription engine...
+              </p>
+
+              <Button
+                variant="destructive"
+                size="md"
                 onClick={stopRecording}
-                className="w-full py-3.5 rounded-2xl bg-slate-900 hover:bg-slate-800 text-white font-bold transition-all flex items-center justify-center gap-2"
+                className="w-full"
               >
-                <Square className="w-4 h-4 fill-current" />
-                Stop Recording
-              </button>
-            </>
+                <Square className="w-3.5 h-3.5 mr-1.5 fill-current" />
+                Finish & Stop Recording
+              </Button>
+            </div>
           )}
 
           {/* STATE: PROCESSING */}
           {status === "processing" && (
-            <>
-              <div className="w-20 h-20 rounded-full bg-amber-50 flex items-center justify-center mb-6">
-                <Loader2 className="w-8 h-8 text-amber-500 animate-spin" />
+            <div className="space-y-4 w-full flex flex-col items-center">
+              <div className="w-16 h-16 rounded-full bg-primary/10 text-primary flex items-center justify-center animate-pulse">
+                <Loader2 className="w-7 h-7 animate-spin text-primary" />
               </div>
-              <h4 className="font-bold text-slate-900 mb-1">Transcribing Audio</h4>
-              <p className="text-sm text-slate-500 text-center max-w-[250px]">
-                Deepgram is processing the medical transcription. This usually takes a few seconds...
+              <h4 className="font-bold text-sm text-foreground">
+                Analyzing Clinical Dialogue...
+              </h4>
+              <p className="text-xs text-muted-foreground max-w-xs leading-relaxed font-mono">
+                Extracting SOAP sections, ICD-10 diagnosis candidates, and checking pharmacological safety guardrails.
               </p>
-            </>
+              <Badge variant="primary" size="sm">
+                Processing Encounter
+              </Badge>
+            </div>
           )}
 
           {/* STATE: COMPLETE */}
           {status === "complete" && (
-            <>
-              <div className="w-20 h-20 rounded-full bg-emerald-50 flex items-center justify-center mb-6">
-                <CheckCircle2 className="w-10 h-10 text-emerald-500" />
+            <div className="space-y-4 w-full flex flex-col items-center">
+              <div className="w-16 h-16 rounded-full bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 flex items-center justify-center">
+                <CheckCircle2 className="w-8 h-8" />
               </div>
-              <h4 className="font-bold text-slate-900 mb-1">Transcription Complete</h4>
-              <p className="text-sm text-slate-500 text-center mb-8">
-                The SOAP note has been generated successfully.
+              <h4 className="font-bold text-sm text-foreground">
+                Clinical Extraction Complete
+              </h4>
+              <p className="text-xs text-muted-foreground font-mono">
+                SOAP documentation is ready for clinician sign-off.
               </p>
-              <button
-                onClick={handleClose}
-                className="w-full py-3 rounded-2xl bg-slate-100 hover:bg-slate-200 text-slate-900 font-bold transition-colors"
-              >
-                Close
-              </button>
-            </>
+              <div className="flex gap-2 w-full pt-2">
+                <Button variant="outline" size="sm" onClick={handleClose} className="flex-1">
+                  Done
+                </Button>
+                {activeConsultationId && (
+                  <Link
+                    href={`/dashboard/consultations/${activeConsultationId}`}
+                    className="flex-1 inline-flex items-center justify-center px-3 py-2 rounded-[var(--radius-sm)] bg-primary text-primary-foreground font-semibold text-xs hover:opacity-90 transition-opacity"
+                  >
+                    Open Reviewer
+                  </Link>
+                )}
+              </div>
+            </div>
           )}
 
           {/* STATE: ERROR */}
           {status === "error" && (
-            <>
-              <div className="w-20 h-20 rounded-full bg-red-50 flex items-center justify-center mb-6">
-                <AlertCircle className="w-10 h-10 text-red-500" />
+            <div className="space-y-4 w-full flex flex-col items-center">
+              <div className="w-16 h-16 rounded-full bg-destructive/10 text-destructive flex items-center justify-center">
+                <AlertCircle className="w-8 h-8" />
               </div>
-              <h4 className="font-bold text-slate-900 mb-1">Recording Failed</h4>
-              <p className="text-sm text-red-500 text-center max-w-[250px] mb-8">
-                {recordError || consultation?.processing_error || "An unknown error occurred."}
+              <h4 className="font-bold text-sm text-destructive">Recording Error</h4>
+              <p className="text-xs text-muted-foreground max-w-xs">
+                {recordError || "Unable to complete recording session. Please verify your connection."}
               </p>
-              <button
-                onClick={handleClose}
-                className="w-full py-3 rounded-2xl bg-slate-100 hover:bg-slate-200 text-slate-900 font-bold transition-colors"
-              >
+              <Button variant="outline" size="sm" onClick={handleClose} className="w-full">
                 Close
-              </button>
-            </>
+              </Button>
+            </div>
           )}
-
         </div>
       </div>
     </div>

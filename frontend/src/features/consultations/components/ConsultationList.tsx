@@ -1,142 +1,206 @@
 "use client";
 
-import { useState } from "react";
-import { useConsultations } from "../api/useConsultations";
-import { FileText, Loader2, AlertCircle } from "lucide-react";
-import { formatDate } from "@/lib/utils";
+import React, { useState } from "react";
 import { useRouter } from "next/navigation";
+import { FileText, ChevronRight, Clock, Stethoscope } from "lucide-react";
+import { useConsultations } from "../api/useConsultations";
+import { formatDate, timeAgo } from "@/lib/utils";
+import { Badge } from "@/components/ui/Badge";
+import { Button } from "@/components/ui/Button";
+import { EmptyState, ErrorState } from "@/components/ui/States";
+import { Skeleton } from "@/components/ui/Skeleton";
 
-export function ConsultationList({ patientId }: { patientId: string }) {
+export function ConsultationList({
+  patientId,
+  onStartConsultation,
+}: {
+  patientId: string;
+  onStartConsultation?: () => void;
+}) {
   const router = useRouter();
   const [page, setPage] = useState(1);
-  const pageSize = 10;
-  const { data, isLoading, isError, error } = useConsultations(patientId, page, pageSize);
+  const pageSize = 8;
+  const { data, isLoading, isError, error, refetch } = useConsultations(
+    patientId,
+    page,
+    pageSize
+  );
 
   if (isLoading) {
     return (
-      <div className="bg-white border border-slate-200 rounded-3xl p-6 shadow-sm flex items-center justify-center min-h-[300px]">
-        <Loader2 className="w-6 h-6 animate-spin text-teal-600" />
+      <div className="bg-card border border-border rounded-[var(--radius-md)] p-4 sm:p-5 shadow-xs space-y-3">
+        <div className="flex items-center justify-between mb-4">
+          <Skeleton className="h-4 w-36" />
+          <Skeleton className="h-4 w-20" />
+        </div>
+        <div className="space-y-2.5">
+          {Array.from({ length: 3 }).map((_, i) => (
+            <div
+              key={i}
+              className="p-3.5 rounded-[var(--radius-sm)] border border-border/60 bg-muted/20 space-y-2"
+            >
+              <div className="flex items-center justify-between">
+                <Skeleton className="h-3.5 w-32" />
+                <Skeleton className="h-5 w-24 rounded-full" />
+              </div>
+              <Skeleton className="h-3 w-48" />
+            </div>
+          ))}
+        </div>
       </div>
     );
   }
 
   if (isError) {
     return (
-      <div className="bg-white border border-slate-200 rounded-3xl p-6 shadow-sm flex flex-col items-center justify-center min-h-[300px] text-center">
-        <AlertCircle className="w-8 h-8 text-red-400 mb-3" />
-        <p className="text-sm font-semibold text-slate-700">Failed to load consultations</p>
-        <p className="text-xs text-slate-500 mt-1">{error?.message || "Unknown error occurred"}</p>
+      <div className="bg-card border border-border rounded-[var(--radius-md)] p-4 sm:p-5 shadow-xs">
+        <ErrorState
+          title="Failed to Load Consultation Records"
+          message={error?.message || "Unable to retrieve past encounters from database."}
+          onRetry={() => refetch()}
+        />
       </div>
     );
   }
 
   if (!data || data.length === 0) {
     return (
-      <div className="bg-white border border-slate-200 rounded-3xl p-6 shadow-sm">
-        <div className="flex items-center justify-between mb-6">
-          <div>
-            <h3 className="text-base font-bold text-slate-900">Consultation History</h3>
-            <p className="text-sm text-slate-500 mt-0.5">Past visits and notes</p>
-          </div>
-        </div>
-
-        <div className="flex flex-col items-center justify-center py-14 text-center">
-          <div className="w-14 h-14 rounded-2xl bg-slate-100 flex items-center justify-center mb-4">
-            <FileText className="w-7 h-7 text-slate-400" />
-          </div>
-          <h4 className="font-semibold text-slate-700">No consultations yet</h4>
-          <p className="mt-2 text-sm text-slate-400 max-w-sm">
-            Once you record a consultation session with this patient, it will appear here with the AI-generated SOAP note.
-          </p>
-        </div>
+      <div className="bg-card border border-border rounded-[var(--radius-md)] p-6 shadow-xs">
+        <EmptyState
+          icon={Stethoscope}
+          title="No Consultations Recorded"
+          description="Record your first clinical visit with this patient. ClearNote will automatically transcribe the encounter and generate structured SOAP documentation."
+          action={
+            onStartConsultation
+              ? {
+                  label: "Start First Visit",
+                  onClick: onStartConsultation,
+                }
+              : undefined
+          }
+        />
       </div>
     );
   }
 
   return (
-    <div className="bg-white border border-slate-200 rounded-3xl p-6 shadow-sm">
-      <div className="flex items-center justify-between mb-6">
+    <div className="bg-card border border-border rounded-[var(--radius-md)] p-4 sm:p-5 shadow-xs space-y-4">
+      <div className="flex items-center justify-between pb-3 border-b border-border/60">
         <div>
-          <h3 className="text-base font-bold text-slate-900">Consultation History</h3>
-          <p className="text-sm text-slate-500 mt-0.5">{data.length} past visits</p>
+          <h3 className="text-sm font-bold text-foreground flex items-center gap-2">
+            <FileText className="w-4 h-4 text-primary" />
+            Clinical Encounter History
+          </h3>
+          <p className="text-[11px] text-muted-foreground font-mono">
+            {data.length} recorded consultation{data.length === 1 ? "" : "s"} on file
+          </p>
         </div>
       </div>
 
-      <div className="space-y-4">
-        {data.map((consultation) => (
-          <div 
-            key={consultation.id} 
-            onClick={() => {
-              if (consultation.status === "COMPLETE" || consultation.status === "AWAITING_REVIEW") {
-                router.push(`/dashboard/consultations/${consultation.id}`);
-              }
-            }}
-            className="border border-slate-100 rounded-2xl p-5 hover:border-teal-100 hover:shadow-sm transition-all group cursor-pointer"
-          >
-            <div className="flex justify-between items-start mb-3">
-              <span className="text-sm font-bold text-slate-900">{formatDate(consultation.created_at)}</span>
-              {consultation.status === "COMPLETE" && (
-                <span className="px-2.5 py-1 rounded-full bg-emerald-50 text-emerald-700 text-[10px] font-bold tracking-wide uppercase">
-                  Complete
-                </span>
-              )}
-              {consultation.status === "AWAITING_REVIEW" && (
-                <span className="px-2.5 py-1 rounded-full bg-amber-50 text-amber-700 text-[10px] font-bold tracking-wide uppercase">
-                  Awaiting Review
-                </span>
-              )}
-              {consultation.status === "PROCESSING" && (
-                <span className="px-2.5 py-1 rounded-full bg-blue-50 text-blue-700 text-[10px] font-bold tracking-wide uppercase flex items-center gap-1.5">
-                  <Loader2 className="w-3 h-3 animate-spin" /> Processing
-                </span>
-              )}
-              {consultation.status === "FAILED" && (
-                <span className="px-2.5 py-1 rounded-full bg-red-50 text-red-700 text-[10px] font-bold tracking-wide uppercase">
-                  Failed
-                </span>
-              )}
-              {consultation.status === "PENDING" && (
-                <span className="px-2.5 py-1 rounded-full bg-slate-100 text-slate-600 text-[10px] font-bold tracking-wide uppercase">
-                  Draft
-                </span>
-              )}
-            </div>
+      <div className="space-y-2.5">
+        {data.map((consultation) => {
+          const hasReview =
+            consultation.status === "COMPLETE" ||
+            consultation.status === "AWAITING_REVIEW";
 
-            {(consultation.status === "COMPLETE" || consultation.status === "AWAITING_REVIEW") && consultation.soap_note?.raw_transcript ? (
-              <p className="text-sm text-slate-600 line-clamp-2 leading-relaxed">
-                &quot;{consultation.soap_note.raw_transcript}&quot;
-              </p>
-            ) : consultation.status === "FAILED" ? (
-              <p className="text-sm text-red-500">
-                {consultation.processing_error || "An error occurred during transcription."}
-              </p>
-            ) : (
-              <p className="text-sm text-slate-400 italic">
-                Transcript not available yet.
-              </p>
-            )}
-          </div>
-        ))}
+          return (
+            <div
+              key={consultation.id}
+              onClick={() => {
+                if (hasReview) {
+                  router.push(`/dashboard/consultations/${consultation.id}`);
+                }
+              }}
+              className={`p-3.5 rounded-[var(--radius-sm)] border border-border/80 bg-card hover:border-primary/40 hover:bg-muted/30 transition-all group ${
+                hasReview ? "cursor-pointer" : ""
+              }`}
+            >
+              <div className="flex items-start justify-between gap-3">
+                <div className="space-y-1">
+                  <div className="flex items-center gap-2">
+                    <span className="text-xs font-bold text-foreground">
+                      {formatDate(consultation.created_at)}
+                    </span>
+                    <span className="text-muted-foreground">•</span>
+                    <span className="text-[10px] font-mono text-muted-foreground">
+                      ENC-{consultation.id.slice(0, 8).toUpperCase()}
+                    </span>
+                  </div>
+
+                  <p className="text-[11px] text-muted-foreground font-mono flex items-center gap-1.5">
+                    <Clock className="w-3 h-3 text-muted-foreground" />
+                    {timeAgo(consultation.created_at)}
+                    {consultation.duration_seconds && (
+                      <>
+                        <span>•</span>
+                        <span>
+                          {Math.floor(consultation.duration_seconds / 60)}m{" "}
+                          {consultation.duration_seconds % 60}s duration
+                        </span>
+                      </>
+                    )}
+                  </p>
+                </div>
+
+                <div className="flex items-center gap-2 flex-shrink-0">
+                  {consultation.status === "COMPLETE" && (
+                    <Badge variant="success" size="sm" dot>
+                      Approved & Signed
+                    </Badge>
+                  )}
+                  {consultation.status === "AWAITING_REVIEW" && (
+                    <Badge variant="warning" size="sm" dot>
+                      Awaiting Review
+                    </Badge>
+                  )}
+                  {consultation.status === "PROCESSING" && (
+                    <Badge variant="primary" size="sm">
+                      Extracting Notes...
+                    </Badge>
+                  )}
+                  {consultation.status === "FAILED" && (
+                    <Badge variant="destructive" size="sm">
+                      Processing Failed
+                    </Badge>
+                  )}
+                  {consultation.status === "PENDING" && (
+                    <Badge variant="default" size="sm">
+                      Draft Session
+                    </Badge>
+                  )}
+
+                  {hasReview && (
+                    <ChevronRight className="w-4 h-4 text-muted-foreground group-hover:text-foreground transition-colors group-hover:translate-x-0.5" />
+                  )}
+                </div>
+              </div>
+            </div>
+          );
+        })}
       </div>
 
       {/* Pagination Controls */}
-      {(page > 1 || (data && data.length === pageSize)) && (
-        <div className="flex items-center justify-between px-6 py-3 border-t border-slate-100 bg-slate-50/50 mt-4 rounded-b-3xl">
-          <button
+      {(page > 1 || data.length === pageSize) && (
+        <div className="flex items-center justify-between pt-3 border-t border-border/60 text-xs">
+          <Button
+            variant="outline"
+            size="xs"
             onClick={() => setPage((p) => Math.max(1, p - 1))}
             disabled={page === 1}
-            className="text-xs font-semibold px-3 py-1.5 rounded-lg border border-slate-200 bg-white text-slate-700 hover:bg-slate-50 disabled:opacity-40 disabled:cursor-not-allowed transition-all"
           >
             Previous
-          </button>
-          <span className="text-xs text-slate-500 font-medium">Page {page}</span>
-          <button
+          </Button>
+          <span className="text-muted-foreground font-mono text-[11px]">
+            Page {page}
+          </span>
+          <Button
+            variant="outline"
+            size="xs"
             onClick={() => setPage((p) => p + 1)}
-            disabled={!data || data.length < pageSize}
-            className="text-xs font-semibold px-3 py-1.5 rounded-lg border border-slate-200 bg-white text-slate-700 hover:bg-slate-50 disabled:opacity-40 disabled:cursor-not-allowed transition-all"
+            disabled={data.length < pageSize}
           >
             Next
-          </button>
+          </Button>
         </div>
       )}
     </div>

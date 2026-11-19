@@ -1,5 +1,6 @@
 "use client";
 
+import React, { useState } from "react";
 import { useParams, useRouter } from "next/navigation";
 import {
   ArrowLeft,
@@ -9,26 +10,25 @@ import {
   Calendar,
   Clock,
   Stethoscope,
-  FileText,
-  Loader2,
   Pencil,
-  CheckCircle,
+  ShieldCheck,
+  AlertCircle,
   Ruler,
   Activity,
 } from "lucide-react";
-import Link from "next/link";
-
 import { usePatient } from "@/features/patients/api/usePatient";
 import { ConsultationList } from "@/features/consultations/components/ConsultationList";
 import { AudioRecorderModal } from "@/features/consultations/components/AudioRecorderModal";
-import { formatDate, calculateAge, getInitials } from "@/lib/utils";
-import { useState } from "react";
 import UpdatePatientModal from "@/features/patients/components/UpdatePatientModal";
 import { useUpdatePatient } from "@/features/patients/api/useUpdatePatient";
+import { Avatar } from "@/components/ui/Avatar";
+import { Button } from "@/components/ui/Button";
+import { ErrorState } from "@/components/ui/States";
+import { formatDate, calculateAge } from "@/lib/utils";
 
-// ─── Sub-components ───────────────────────────────────────────────────────────
+// ─── Info Row Sub-component ───────────────────────────────────────────────────
 
-function InfoCard({
+function InfoRow({
   icon: Icon,
   label,
   value,
@@ -38,19 +38,19 @@ function InfoCard({
   value: string;
 }) {
   return (
-    <div className="flex items-start gap-4 p-4 rounded-2xl bg-slate-50 border border-slate-100">
-      <div className="w-9 h-9 rounded-xl bg-teal-50 border border-teal-100 flex items-center justify-center flex-shrink-0">
-        <Icon className="w-4 h-4 text-teal-600" />
+    <div className="flex items-center justify-between py-2 border-b border-border/50 text-xs">
+      <div className="flex items-center gap-2 text-muted-foreground">
+        <Icon className="w-3.5 h-3.5 flex-shrink-0" />
+        <span className="font-medium">{label}</span>
       </div>
-      <div>
-        <p className="text-xs font-medium text-slate-400 uppercase tracking-wider">{label}</p>
-        <p className="mt-0.5 text-sm font-semibold text-slate-800">{value}</p>
-      </div>
+      <span className="font-mono text-foreground font-semibold text-right truncate max-w-[180px]">
+        {value}
+      </span>
     </div>
   );
 }
 
-// ─── Page ─────────────────────────────────────────────────────────────────────
+// ─── Patient Profile Page ─────────────────────────────────────────────────────
 
 export default function PatientProfilePage() {
   const { id } = useParams<{ id: string }>();
@@ -59,33 +59,43 @@ export default function PatientProfilePage() {
   const [isUpdateModalOpen, setIsUpdateModalOpen] = useState(false);
   const { mutateAsync: updatePatient, isPending: isUpdatingConsent } = useUpdatePatient();
 
-  const { data: patient, isLoading, isError, error } = usePatient(id);
+  const { data: patient, isLoading, isError, error, refetch } = usePatient(id);
 
   if (isLoading) {
     return (
-      <div className="min-h-screen bg-white flex items-center justify-center">
-        <Loader2 className="w-6 h-6 animate-spin text-teal-600" />
-      </div>
-    );
-  }
-
-  if (isError || !patient) {
-    const message = isError
-      ? (error instanceof Error ? error.message : "Failed to load patient.")
-      : "Patient not found.";
-    return (
-      <div className="min-h-screen bg-white flex items-center justify-center">
-        <div className="text-center">
-          <p className="text-red-500 font-semibold">{message}</p>
-          <Link href="/dashboard" className="mt-4 inline-block text-sm text-teal-600 hover:underline">
-            Back to Dashboard
-          </Link>
+      <div className="mx-auto max-w-7xl px-4 sm:px-6 py-8 space-y-6 animate-pulse">
+        <div className="h-6 w-48 bg-muted rounded" />
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+          <div className="h-96 bg-card border border-border rounded-[var(--radius-md)] p-6" />
+          <div className="lg:col-span-2 h-96 bg-card border border-border rounded-[var(--radius-md)] p-6" />
         </div>
       </div>
     );
   }
 
-  const initials = getInitials(patient.name);
+  if (isError || !patient) {
+    return (
+      <div className="mx-auto max-w-3xl px-4 py-16">
+        <ErrorState
+          title="Patient Record Not Found"
+          message={
+            isError
+              ? error instanceof Error
+                ? error.message
+                : "Failed to retrieve electronic medical chart."
+              : "No patient matching this clinical identifier could be found."
+          }
+          onRetry={() => refetch()}
+        />
+        <div className="mt-4 text-center">
+          <Button variant="outline" size="sm" onClick={() => router.push("/dashboard")}>
+            <ArrowLeft className="w-3.5 h-3.5 mr-1" />
+            Back to Clinical Roster
+          </Button>
+        </div>
+      </div>
+    );
+  }
 
   const handleRecordConsent = async () => {
     try {
@@ -93,8 +103,8 @@ export default function PatientProfilePage() {
         patientId: patient.id,
         payload: {
           consent_given_at: new Date().toISOString(),
-          consent_version: "v1.0"
-        }
+          consent_version: "v2.1",
+        },
       });
     } catch {
       // Error handled by mutation
@@ -102,126 +112,152 @@ export default function PatientProfilePage() {
   };
 
   return (
-    <div className="min-h-screen bg-white text-slate-900 selection:bg-teal-500/30">
-      {/* Sticky Top Bar */}
-      <header className="sticky top-0 z-40 bg-white/80 backdrop-blur-md border-b border-slate-200">
-        <div className="mx-auto max-w-5xl px-6 py-4 flex items-center justify-between">
-          <div className="flex items-center gap-3">
-            <button
-              onClick={() => router.back()}
-              className="p-2 rounded-xl hover:bg-slate-100 text-slate-500 hover:text-slate-900 transition-colors"
-            >
-              <ArrowLeft className="w-5 h-5" />
-            </button>
-            <div>
-              <p className="text-xs text-slate-400 font-medium">Patient Profile</p>
-              <h1 className="text-base font-bold text-slate-900 leading-tight">{patient.name}</h1>
+    <div className="mx-auto max-w-7xl px-4 sm:px-6 py-6 sm:py-8 space-y-6 animate-in fade-in duration-200">
+      {/* Header Bar */}
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-4 border-b border-border/60">
+        <div className="flex items-center gap-3">
+          <button
+            type="button"
+            onClick={() => router.push("/dashboard")}
+            className="p-1.5 rounded-[var(--radius-xs)] border border-border bg-card text-muted-foreground hover:text-foreground hover:bg-muted transition-colors"
+            title="Return to Clinical Roster"
+            aria-label="Back to clinical roster"
+          >
+            <ArrowLeft className="w-4 h-4" />
+          </button>
+          <div>
+            <div className="flex items-center gap-2">
+              <span className="text-[11px] font-mono uppercase tracking-wider text-muted-foreground">
+                Electronic Health Record
+              </span>
+              <span className="text-muted-foreground">•</span>
+              <span className="text-[11px] font-mono text-muted-foreground font-semibold">
+                MRN: {patient.id.slice(0, 8).toUpperCase()}
+              </span>
             </div>
-          </div>
-
-          <div className="flex items-center gap-3">
-            <button
-              onClick={() => setIsUpdateModalOpen(true)}
-              className="inline-flex items-center gap-2 px-4 py-2 rounded-full border border-slate-200 bg-white hover:bg-slate-50 text-sm font-semibold text-slate-700 transition-colors"
-            >
-              <Pencil className="w-4 h-4" />
-              Edit Profile
-            </button>
-            <button
-              onClick={() => setIsRecordingModalOpen(true)}
-              className="inline-flex items-center gap-2 px-4 py-2 rounded-full border border-teal-200 bg-teal-50 hover:bg-teal-100 text-sm font-semibold text-teal-700 transition-colors"
-            >
-              <Stethoscope className="w-4 h-4" />
-              Start Consultation
-            </button>
+            <h1 className="text-xl sm:text-2xl font-bold tracking-tight text-foreground">
+              {patient.name}
+            </h1>
           </div>
         </div>
-      </header>
 
-      <main className="mx-auto max-w-5xl px-6 py-10">
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
+        <div className="flex items-center gap-2">
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => setIsUpdateModalOpen(true)}
+            className="text-xs"
+          >
+            <Pencil className="w-3.5 h-3.5 mr-1" />
+            Edit Chart
+          </Button>
+          <Button
+            size="sm"
+            onClick={() => setIsRecordingModalOpen(true)}
+            className="text-xs"
+          >
+            <Stethoscope className="w-3.5 h-3.5 mr-1" />
+            Start Consultation
+          </Button>
+        </div>
+      </div>
 
-          {/* ── Left Column: Identity Card ───────────────────────── */}
-          <div className="lg:col-span-1 space-y-6">
-            {/* Avatar Card */}
-            <div className="bg-white border border-slate-200 rounded-3xl p-6 shadow-sm text-center">
-              <div className="w-20 h-20 rounded-full bg-teal-100 text-teal-700 font-bold text-2xl flex items-center justify-center mx-auto mb-4 shadow-inner">
-                {initials}
-              </div>
-              <h2 className="text-xl font-bold text-slate-900">{patient.name}</h2>
-              <p className="text-sm text-slate-500 mt-1">
-                Patient since {formatDate(patient.created_at)}
-              </p>
+      {/* Main Grid: Identity Column (1/3) + Activity Column (2/3) */}
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 items-start">
+        {/* Left Column: Demographics & Identity */}
+        <div className="space-y-6">
+          {/* Identity Card */}
+          <div className="bg-card border border-border rounded-[var(--radius-md)] p-5 shadow-xs flex flex-col items-center text-center">
+            <Avatar name={patient.name} size="xl" />
+            <h2 className="text-base font-bold text-foreground mt-3">{patient.name}</h2>
+            <p className="text-[11px] font-mono text-muted-foreground mt-0.5">
+              Chart created {formatDate(patient.created_at)}
+            </p>
 
+            {/* Consent Status */}
+            <div className="mt-4 w-full pt-3 border-t border-border/60">
               {patient.consent_given_at ? (
-                <div className="mt-4 inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-teal-50 border border-teal-200 text-teal-700 text-xs font-medium">
-                  <span className="w-1.5 h-1.5 rounded-full bg-teal-500" />
-                  Consent Given
+                <div className="flex items-center justify-center gap-1.5 text-xs font-semibold text-emerald-600 dark:text-emerald-400">
+                  <ShieldCheck className="w-4 h-4" />
+                  <span>HIPAA Recording Consent Verified</span>
                 </div>
               ) : (
-                <div className="mt-4 flex flex-col items-center gap-2">
-                  <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-amber-50 border border-amber-200 text-amber-700 text-xs font-medium">
-                    <span className="w-1.5 h-1.5 rounded-full bg-amber-500" />
-                    No Consent Recorded
+                <div className="space-y-2">
+                  <div className="flex items-center justify-center gap-1.5 text-xs font-semibold text-amber-600 dark:text-amber-400">
+                    <AlertCircle className="w-4 h-4" />
+                    <span>Consent Signature Pending</span>
                   </div>
-                  <button
+                  <Button
+                    variant="outline"
+                    size="xs"
                     onClick={handleRecordConsent}
-                    disabled={isUpdatingConsent}
-                    className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-slate-900 text-white text-xs font-medium hover:bg-slate-800 disabled:opacity-50 transition-colors"
+                    isLoading={isUpdatingConsent}
+                    className="w-full text-xs"
                   >
-                    <CheckCircle className="w-3.5 h-3.5" />
-                    Record Consent Now
-                  </button>
+                    Record Verbal Consent Now
+                  </Button>
                 </div>
               )}
             </div>
-
-            {/* Quick Info */}
-            <div className="bg-white border border-slate-200 rounded-3xl p-6 shadow-sm space-y-3">
-              <h3 className="text-sm font-bold text-slate-700 uppercase tracking-wider mb-4">
-                Contact &amp; Details
-              </h3>
-              <InfoCard icon={Phone} label="Phone" value={patient.phone ?? "—"} />
-              <InfoCard icon={Mail} label="Email" value={patient.email ?? "—"} />
-              <InfoCard icon={Calendar} label="Date of Birth" value={formatDate(patient.dob)} />
-              <InfoCard icon={User} label="Age" value={patient.age ? `${patient.age} years` : calculateAge(patient.dob)} />
-              {patient.height && <InfoCard icon={Ruler} label="Height" value={patient.height} />}
-              {patient.weight && <InfoCard icon={Activity} label="Weight" value={patient.weight} />}
-              <InfoCard icon={Clock} label="Last Updated" value={formatDate(patient.updated_at)} />
-            </div>
           </div>
 
-          {/* ── Right Column: Activity & Consultations ──────────── */}
-          <div className="lg:col-span-2 space-y-6">
-            {/* Consultation History */}
-            <ConsultationList patientId={id} />
+          {/* Demographic & Contact Details */}
+          <div className="bg-card border border-border rounded-[var(--radius-md)] p-5 shadow-xs space-y-2">
+            <h3 className="text-xs font-bold text-foreground uppercase tracking-wider font-mono mb-2">
+              Demographic &amp; Clinical Vitals
+            </h3>
+            <InfoRow icon={Phone} label="Phone" value={patient.phone ?? "—"} />
+            <InfoRow icon={Mail} label="Email" value={patient.email ?? "—"} />
+            <InfoRow icon={Calendar} label="Date of Birth" value={formatDate(patient.dob)} />
+            <InfoRow
+              icon={User}
+              label="Age"
+              value={patient.age ? `${patient.age} yrs` : calculateAge(patient.dob)}
+            />
+            {patient.height && <InfoRow icon={Ruler} label="Height" value={patient.height} />}
+            {patient.weight && <InfoRow icon={Activity} label="Weight" value={patient.weight} />}
+            <InfoRow icon={Clock} label="Last Updated" value={formatDate(patient.updated_at)} />
+          </div>
 
-            {/* Consent Details */}
-            <div className="bg-white border border-slate-200 rounded-3xl p-6 shadow-sm">
-              <h3 className="text-base font-bold text-slate-900 mb-4">Consent Record</h3>
-              <div className="grid grid-cols-2 gap-4">
-                <InfoCard
-                  icon={FileText}
-                  label="Consent Given At"
-                  value={formatDate(patient.consent_given_at)}
-                />
-                <InfoCard
-                  icon={FileText}
-                  label="Consent Version"
-                  value={patient.consent_version ?? "—"}
-                />
+          {/* Consent Audit Card */}
+          <div className="bg-card border border-border rounded-[var(--radius-md)] p-4 shadow-xs space-y-2 text-xs">
+            <h4 className="font-bold text-foreground font-mono text-[11px] uppercase tracking-wider">
+              Legal Consent Audit
+            </h4>
+            <div className="space-y-1.5 font-mono text-[11px] text-muted-foreground">
+              <div className="flex justify-between">
+                <span>Consent Timestamp:</span>
+                <span className="text-foreground">{formatDate(patient.consent_given_at)}</span>
+              </div>
+              <div className="flex justify-between">
+                <span>Form Version:</span>
+                <span className="text-foreground">{patient.consent_version ?? "None"}</span>
+              </div>
+              <div className="flex justify-between">
+                <span>Storage Retention:</span>
+                <span className="text-foreground">HIPAA 7-Year</span>
               </div>
             </div>
           </div>
         </div>
-      </main>
 
-      <AudioRecorderModal 
-        isOpen={isRecordingModalOpen} 
-        onClose={() => setIsRecordingModalOpen(false)} 
-        patientId={id} 
+        {/* Right Column (2/3): Consultation History */}
+        <div className="lg:col-span-2 space-y-6">
+          <ConsultationList
+            patientId={id}
+            onStartConsultation={() => setIsRecordingModalOpen(true)}
+          />
+        </div>
+      </div>
+
+      {/* Recording Encounter Modal */}
+      <AudioRecorderModal
+        isOpen={isRecordingModalOpen}
+        onClose={() => setIsRecordingModalOpen(false)}
+        patientId={id}
       />
 
+      {/* Edit Patient Demographics Modal */}
       <UpdatePatientModal
         isOpen={isUpdateModalOpen}
         onClose={() => setIsUpdateModalOpen(false)}
