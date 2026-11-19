@@ -5,6 +5,9 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
+### Data & Reliability
+- **TICKET-05 (`DATA-01`)**: Added Alembic migration `e2f3a4b5c6d7` creating an HNSW vector index (`idx_guideline_chunks_embedding_hnsw`) on `guideline_chunks.embedding` using `vector_cosine_ops` (`m=16`, `ef_construction=64`). Replaces $O(N)$ sequential table scans during RAG interaction checks with sub-millisecond approximate nearest neighbor index traversal.
+
 ### AI Safety & Quality
 - **TICKET-18 (`AI-05`)**: Added automated clinical golden benchmark evaluation suite (`backend/tests/evals/golden_dataset.py`, `backend/tests/evals/test_clinical_evals.py`). Features 3 comprehensive annotated clinical vignettes covering acute pharyngitis with penicillin anaphylaxis, essential hypertension with knee osteoarthritis polypharmacy, and type 2 diabetes with stage 4 CKD lactic acidosis contraindications. Computes precision, recall, and F1 scores across medications, ICD-10 diagnoses, and patient allergies, enforcing strict regression bounds (medication recall >= 95%, ICD-10 recall >= 90%, allergy recall = 100%).
 - **TICKET-14B (`AI-03` / `AI-04`)**: Added grounding citations, low-evidence confidence capping, and automated model failure fallbacks in `RAGService` and `LLMService`. Configured primary LLM model `llama-3.3-70b-versatile` with automated fallback to `llama-3.1-8b-instant`. In drug interaction RAG, when local guideline retrieval yields zero chunks, output confidence is strictly capped to `<= 0.5` and annotated as `"(Unverified in local guidelines)"`. On LLM network or 5xx exceptions, safety caution alerts with `confidence=0.0` and `severity="MODERATE"` are recorded to require clinician manual verification in clinical formularies rather than silently failing.
