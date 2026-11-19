@@ -34,10 +34,21 @@ Every response includes:
 ### 2.1 System Health Check
 - **Endpoint**: `GET /health`
 - **Auth**: None (Public)
+- **Description**: Deep diagnostic probe testing active database connectivity and application version status.
 - **Response `200 OK`**:
 ```json
 {
-  "status": "ok"
+  "status": "ok",
+  "database": "ok",
+  "version": "1.0.0"
+}
+```
+- **Response `200 OK` (Degraded Database)**:
+```json
+{
+  "status": "degraded",
+  "database": "unhealthy",
+  "version": "1.0.0"
 }
 ```
 
