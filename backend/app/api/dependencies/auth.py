@@ -111,6 +111,30 @@ async def get_current_doctor(
     stmt = select(Doctor).where(Doctor.clerk_user_id == clerk_user_id)
     doctor = await db.scalar(stmt)
     if not doctor:
+        # Fallback: Just-In-Time (JIT) provisioning from Clerk API if webhook did not fire
+        try:
+            from clerk_backend_api import Clerk
+            from app.services.doctor_service import DoctorService
+            from app.core.logger import mask_email
+
+            clerk_client = Clerk(bearer_auth=settings.CLERK_SECRET_KEY)
+            clerk_user = await clerk_client.users.get_async(user_id=clerk_user_id)
+            if clerk_user:
+                email = (
+                    clerk_user.email_addresses[0].email_address
+                    if clerk_user.email_addresses
+                    else f"{clerk_user_id}@clerk.local"
+                )
+                first_name = clerk_user.first_name or ""
+                last_name = clerk_user.last_name or ""
+                name = f"{first_name} {last_name}".strip() or "Doctor"
+                await DoctorService.create_doctor_from_clerk(db, clerk_user_id, email, name)
+                doctor = await db.scalar(stmt)
+                logger.info(f"JIT provisioned doctor record for {mask_email(email)} ({clerk_user_id})")
+        except Exception as exc:
+            logger.warning(f"Could not JIT provision doctor {clerk_user_id} from Clerk: {exc}")
+
+    if not doctor:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
             detail="Doctor profile not found in database. Make sure you signed up correctly."
