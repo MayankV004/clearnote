@@ -54,6 +54,10 @@ async def get_current_user(request: Request) -> RequestState:
             headers={"WWW-Authenticate": "Bearer"},
         )
 
+    # Attach authenticated user identity to request state for audit logging
+    if request_state.payload and "sub" in request_state.payload:
+        request.state.user_id = request_state.payload["sub"]
+
     return request_state
 
 
@@ -61,7 +65,11 @@ async def get_current_user(request: Request) -> RequestState:
 # verbose Annotated[...] form.
 CurrentUser = Annotated[RequestState, Depends(get_current_user)]
 
-async def get_current_doctor(state: CurrentUser, db: AsyncSession = Depends(get_db)) -> Doctor:
+async def get_current_doctor(
+    request: Request,
+    state: CurrentUser,
+    db: AsyncSession = Depends(get_db),
+) -> Doctor:
     """
     Resolve the internal Doctor record from the Clerk JWT sub claim.
 
@@ -70,6 +78,7 @@ async def get_current_doctor(state: CurrentUser, db: AsyncSession = Depends(get_
     """
     from app.services.cache_service import cache, key_doctor, TTL_DOCTOR
     from app.schemas.doctor import DoctorResponse
+    from sqlalchemy import text
 
     clerk_user_id = state.payload["sub"]
     cache_key = key_doctor(clerk_user_id)
@@ -77,11 +86,13 @@ async def get_current_doctor(state: CurrentUser, db: AsyncSession = Depends(get_
     # ── Cache read ───────────────────────────────────────────────────────────
     cached = await cache.get(cache_key)
     if cached is not None:
-        # Return Pydantic model directly — Doctor(**cached) breaks because JSON
-        # deserialises datetime fields as strings, not datetime objects.
-        # DoctorResponse has all attrs (.id, .clerk_user_id, .is_onboarded) that
-        # downstream service methods access.
-        return DoctorResponse.model_validate(cached)
+        doctor_resp = DoctorResponse.model_validate(cached)
+        request.state.user_id = str(doctor_resp.id)
+        try:
+            await db.execute(text(f"SELECT set_config('app.current_doctor_id', '{doctor_resp.id}', true)"))
+        except Exception as e:
+            logger.warning(f"Failed to set RLS config for {doctor_resp.id}: {e}")
+        return doctor_resp
 
     # ── Cache miss → DB ──────────────────────────────────────────────────────
     stmt = select(Doctor).where(Doctor.clerk_user_id == clerk_user_id)
@@ -92,6 +103,8 @@ async def get_current_doctor(state: CurrentUser, db: AsyncSession = Depends(get_
             detail="Doctor profile not found in database. Make sure you signed up correctly."
         )
 
+    request.state.user_id = str(doctor.id)
+
     # Serialise via Pydantic schema and write to cache
     try:
         doctor_dict = DoctorResponse.model_validate(doctor).model_dump(mode="json")
@@ -100,7 +113,6 @@ async def get_current_doctor(state: CurrentUser, db: AsyncSession = Depends(get_
         logger.warning(f"Could not cache doctor {clerk_user_id}: {exc}")
 
     # Inject RLS configuration into the current database transaction
-    from sqlalchemy import text
     try:
         await db.execute(text(f"SELECT set_config('app.current_doctor_id', '{doctor.id}', true)"))
     except Exception as e:

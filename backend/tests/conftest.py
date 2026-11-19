@@ -75,6 +75,8 @@ def _patch_postgres_types():
     import app.models.diagnosis       # noqa: F401
     import app.models.interaction     # noqa: F401
     import app.models.guideline_chunk # noqa: F401
+    import app.models.audit_log       # noqa: F401
+    import app.models.data_deletion   # noqa: F401
 
     try:
         from pgvector.sqlalchemy import Vector as PGVector
@@ -121,6 +123,15 @@ def engine():
 @pytest_asyncio.fixture(scope="session", autouse=True)
 async def create_tables(engine):
     """Create all ORM tables once before any test runs."""
+    import app.middleware.security_header as sh
+    test_sessionmaker = async_sessionmaker(
+        bind=engine,
+        class_=AsyncSession,
+        expire_on_commit=False,
+        autoflush=False,
+    )
+    sh.AsyncSessionLocal = test_sessionmaker
+
     async with engine.begin() as conn:
         await conn.run_sync(Base.metadata.create_all)
     yield

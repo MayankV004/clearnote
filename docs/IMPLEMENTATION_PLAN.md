@@ -71,7 +71,7 @@ flowchart TD
 
 ---
 
-### TICKET-02: Fix Audit Logging Middleware `user_id` State Assignment
+### [x] TICKET-02: Fix Audit Logging Middleware `user_id` State Assignment (COMPLETED)
 - **Priority**: P0 (Blocker / HIPAA)
 - **Gap Reference**: `SEC-02`
 - **Scope**: Ensure `get_current_user` in `auth.py` sets `request.state.user_id = doctor.id` so that `RequestLoggingMiddleware` successfully records all clinical API interactions in `audit_logs`.

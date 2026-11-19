@@ -41,19 +41,22 @@ class RequestLoggingMiddleware(BaseHTTPMiddleware):
                 return response
 
             async def write_audit_log():
-                async with AsyncSessionLocal() as session:
-                    log_entry = AuditLog(
-                        user_id=user_id,
-                        action=request.method,
-                        target_resource=request.url.path,
-                        payload=payload,
-                        ip_address=ip,
-                        status_code=response.status_code,
-                    )
+                try:
+                    async with AsyncSessionLocal() as session:
+                        log_entry = AuditLog(
+                            user_id=str(user_id),
+                            action=request.method,
+                            target_resource=request.url.path,
+                            payload=payload,
+                            ip_address=ip,
+                            status_code=response.status_code,
+                        )
 
-                    session.add(log_entry)
-                    await session.commit()
+                        session.add(log_entry)
+                        await session.commit()
+                except Exception as exc:
+                    logger.error(f"Failed to write audit log: {exc}")
 
 
-            asyncio.create_task(write_audit_log())
+            await write_audit_log()
         return response

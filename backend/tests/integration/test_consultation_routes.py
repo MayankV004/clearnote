@@ -24,7 +24,10 @@ def _override_auth(doctor):
     Return a FastAPI dependency override that injects `doctor` as the
     authenticated user, bypassing Clerk JWT validation entirely.
     """
-    async def _get_doctor():
+    from starlette.requests import Request
+    async def _get_doctor(request: Request = None):
+        if request is not None:
+            request.state.user_id = str(doctor.id)
         return doctor
     return _get_doctor
 
