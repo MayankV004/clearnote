@@ -249,23 +249,32 @@ class S3Service:
             if tmp_path and os.path.exists(tmp_path):
                 os.unlink(tmp_path)
 
-    async def delete_object(self, s3_key: str) -> None:
+    async def delete_object(self, s3_key: str, bucket_name: str = None) -> None:
         """
         Delete a single object from S3. Silent no-op if the key doesn't exist.
         Useful for cleaning up audio files after transcription to save storage costs.
         """
+        target_bucket = bucket_name or settings.AUDIO_BUCKET_NAME
         def _delete():
             self.client.delete_object(
-                Bucket=settings.AUDIO_BUCKET_NAME,
+                Bucket=target_bucket,
                 Key=s3_key,
             )
 
         try:
             await run_in_threadpool(_delete)
-            logger.info(f"S3Service: deleted {s3_key}")
+            logger.info(f"S3Service: deleted s3://{target_bucket}/{s3_key}")
         except (BotoCoreError, ClientError) as exc:
             # Log but don't raise – a failed delete is not worth crashing the pipeline
-            logger.warning(f"S3Service: could not delete {s3_key} – {exc}")
+            logger.warning(f"S3Service: could not delete {s3_key} from {target_bucket} – {exc}")
+
+    async def delete_audio(self, s3_key: str) -> None:
+        """Delete an audio recording from the audio bucket."""
+        await self.delete_object(s3_key, bucket_name=settings.AUDIO_BUCKET_NAME)
+
+    async def delete_pdf(self, s3_key: str) -> None:
+        """Delete a prescription PDF from the PDF bucket."""
+        await self.delete_object(s3_key, bucket_name=settings.PDF_BUCKET_NAME)
 
     async def generate_presigned_url(
         self, s3_key: str, expires_in: int = 3600, bucket_name: str = None

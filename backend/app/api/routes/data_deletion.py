@@ -10,8 +10,10 @@ from app.api.dependencies.auth import get_current_doctor
 from app.core.limiter import limiter
 from app.models.doctor import Doctor
 from app.models.patient import Patient
+from app.models.consultation import Consultation
 from app.models.data_deletion import DataDeletionRequest, DataDeletionStatus
 from app.schemas.data_deletion import DataDeletionRequestCreate, DataDeletionRequestResponse
+from app.services.s3_service import s3_service
 
 router = APIRouter(prefix="/data-deletion", tags=["Data Deletion"])
 
@@ -67,6 +69,18 @@ async def process_data_deletion(
     patient = await db.scalar(patient_stmt)
     
     if patient:
+        # Cascade S3 deletion: remove all audio and prescription PDF assets
+        consultations_stmt = select(Consultation).where(
+            Consultation.patient_id == patient.id
+        )
+        consultations_res = await db.execute(consultations_stmt)
+        consultations = consultations_res.scalars().all()
+        for c in consultations:
+            if c.audio_s3_key:
+                await s3_service.delete_audio(c.audio_s3_key)
+            if c.prescription_s3_key:
+                await s3_service.delete_pdf(c.prescription_s3_key)
+
         await db.delete(patient)
     
     deletion_req.status = DataDeletionStatus.PROCESSED

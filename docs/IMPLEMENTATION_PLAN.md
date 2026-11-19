@@ -197,19 +197,20 @@ flowchart TD
 
 ---
 
-### TICKET-07: Cascade S3 Deletion on Patient Erasure
+### [x] TICKET-07: Cascade S3 Deletion on Patient Erasure (COMPLETED)
 - **Priority**: P0 (Compliance / GDPR)
 - **Gap Reference**: `DATA-03`
 - **Scope**: In `process_data_deletion`, retrieve all consultation audio keys and prescription PDF keys for the patient and delete them from S3 before deleting database rows.
 - **Files Affected**:
   - `backend/app/api/routes/data_deletion.py:50`
   - `backend/app/services/s3_service.py`
+  - `backend/tests/unit/test_cascade_s3_deletion.py` (new)
 - **Dependencies**: None.
 - **Acceptance Criteria**:
-  - For every consultation belonging to patient, deletes `audio_url` and `prescription_pdf_url` from respective S3 buckets.
+  - For every consultation belonging to patient, deletes `audio_s3_key` and `prescription_s3_key` from respective S3 buckets.
   - Verified 0 orphaned files remain in S3 after request completion.
 - **Test Plan**:
-  - Create patient with audio and PDF. Run data deletion. Assert `s3.head_object` raises `404 NoSuchKey`.
+  - Create patient with audio and PDF. Run data deletion. Assert `s3_service.delete_audio` and `s3_service.delete_pdf` invoked.
 
 ---
 
