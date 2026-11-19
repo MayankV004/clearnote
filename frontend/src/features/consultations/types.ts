@@ -41,7 +41,7 @@ export interface Consultation {
   id: string;
   patient_id: string;
   doctor_id: string;
-  status: "PENDING" | "PROCESSING" | "COMPLETE" | "FAILED";
+  status: "PENDING" | "PROCESSING" | "AWAITING_REVIEW" | "COMPLETE" | "FAILED";
   audio_s3_key: string | null;
   duration_seconds: number | null;
   processing_error: string | null;

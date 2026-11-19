@@ -5,6 +5,9 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
+### AI Safety & Quality
+- **TICKET-06 (`AI-01`)**: Implemented human-in-the-loop review state machine. Consultation status now transitions to `AWAITING_REVIEW` upon background extraction completion. Added `POST /consultations/{id}/approve` clinical sign-off endpoint. Blocked prescription generation until explicit doctor approval is recorded, preventing unreviewed AI hallucinations from reaching patients. Added Alembic migration `c1a2b3d4e5f6` for `consultationstatus` enum.
+
 ### Security
 - **TICKET-01E (`SEC-08`)**: Calibrated Content-Security-Policy (CSP) header in `SecurityHeadersMiddleware` to explicitly whitelist Clerk authentication domains, S3 presigned asset delivery, and Deepgram WebSocket endpoints. Applied SlowAPI rate limiting to public prescription endpoints (10/min), guideline PDF ingestion (5/min), and patient data deletion requests (10/min).
 - **TICKET-01D (`SEC-07`)**: Implemented prompt injection defenses with structural XML tag delimiters (`<untrusted_clinical_dialogue>`, `<guideline_context>`, `<patient_context>`) in `soap_extraction.py` and `drug_interaction.py`. Added explicit system instructions to ignore meta-commands and treat dialogue strictly as untrusted clinical data.

@@ -53,7 +53,7 @@ class ConsultationResponse(BaseModel):
     id: UUID
     patient_id: UUID
     doctor_id: UUID
-    status: ConsultationStatus          # PENDING / PROCESSING / COMPLETE / FAILED
+    status: ConsultationStatus          # PENDING / PROCESSING / AWAITING_REVIEW / COMPLETE / FAILED
     audio_s3_key: Optional[str] = None
     duration_seconds: Optional[int] = None
     processing_error: Optional[str] = None

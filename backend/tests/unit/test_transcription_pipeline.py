@@ -136,9 +136,8 @@ class TestTranscriptionPipelineSuccess:
         refreshed = await db_session.scalar(
             select(Consultation).where(Consultation.id == consultation.id)
         )
-        assert refreshed.status == ConsultationStatus.COMPLETE, (
-            f"Expected COMPLETE but got {refreshed.status}. "
-            "This is the SQLAlchemy expiry bug — db.refresh() is missing."
+        assert refreshed.status == ConsultationStatus.AWAITING_REVIEW, (
+            f"Expected AWAITING_REVIEW but got {refreshed.status}."
         )
 
     async def test_soap_note_is_created(self, db_session, mocker):

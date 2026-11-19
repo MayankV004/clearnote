@@ -8,6 +8,7 @@ from app.db.base import Base
 class ConsultationStatus(str, enum.Enum):
     PENDING = "PENDING"
     PROCESSING = "PROCESSING"
+    AWAITING_REVIEW = "AWAITING_REVIEW"
     COMPLETE = "COMPLETE"
     FAILED = "FAILED"
 

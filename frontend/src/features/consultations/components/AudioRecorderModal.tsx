@@ -36,9 +36,9 @@ export function AudioRecorderModal({ isOpen, onClose, patientId }: Props) {
 
   useEffect(() => {
     if (status === "processing" && consultation) {
-      if (consultation.status === "COMPLETE") {
+      if (consultation.status === "AWAITING_REVIEW" || consultation.status === "COMPLETE") {
         setStatus("complete");
-        toast.success("Transcription complete! SOAP note is ready.", {
+        toast.success("Extraction complete! SOAP note is ready for your clinical review.", {
           duration: 5000,
         });
       } else if (consultation.status === "FAILED") {

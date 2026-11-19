@@ -2,7 +2,7 @@
 from typing import List
 from uuid import UUID
 from pydantic import BaseModel
-from fastapi import APIRouter, Depends, WebSocket, WebSocketDisconnect, BackgroundTasks, status, UploadFile, File, Query, Request
+from fastapi import APIRouter, Depends, WebSocket, WebSocketDisconnect, BackgroundTasks, status, UploadFile, File, Query, Request, HTTPException
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.future import select
 from sqlalchemy.orm import selectinload
@@ -200,6 +200,44 @@ async def audio_stream(
                         f"Could not save FAILED status for {consultation_id}: {commit_exc}"
                     )
 
+@router.post("/{consultation_id}/approve", response_model=ConsultationResponse, summary="Approve clinical documentation and mark complete")
+async def approve_consultation(
+    consultation_id: UUID,
+    doctor: Doctor = Depends(get_current_doctor),
+    db: AsyncSession = Depends(get_db),
+):
+    """
+    Clinician sign-off gate (TICKET-06).
+    Transitions a consultation from AWAITING_REVIEW to COMPLETE, unlocking prescription generation.
+    """
+    stmt = select(Consultation).where(
+        Consultation.id == consultation_id,
+        Consultation.doctor_id == doctor.id,
+    ).options(
+        selectinload(Consultation.soap_note),
+        selectinload(Consultation.medications),
+        selectinload(Consultation.diagnoses),
+        selectinload(Consultation.interactions),
+    )
+    consultation = await db.scalar(stmt)
+    if not consultation:
+        raise ConsultationNotFoundException(str(consultation_id))
+    
+    if consultation.status == ConsultationStatus.COMPLETE:
+        return consultation
+
+    if consultation.status != ConsultationStatus.AWAITING_REVIEW:
+        raise HTTPException(
+            status_code=400,
+            detail=f"Consultation cannot be approved from status '{consultation.status.value}'. Must be AWAITING_REVIEW."
+        )
+
+    consultation.status = ConsultationStatus.COMPLETE
+    await db.commit()
+
+    refreshed = await db.scalar(stmt)
+    return refreshed
+
 @router.post("/{consultation_id}/prescription", response_model=dict)
 async def generate_prescription(
     consultation_id: UUID,
@@ -218,7 +256,10 @@ async def generate_prescription(
         raise ConsultationNotFoundException(str(consultation_id))
     
     if consultation.status != ConsultationStatus.COMPLETE:
-        return JSONResponse(status_code=400, content={"message": "Consultation is not complete yet."})
+        raise HTTPException(
+            status_code=400,
+            detail="Consultation must be approved by clinician before generating a prescription."
+        )
 
     # Generate PDF
     try:

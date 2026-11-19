@@ -28,6 +28,7 @@ import {
 } from "@/features/consultations/api/usePrescription";
 import {
   useUpdateConsultation,
+  useApproveConsultation,
   ConsultationUpdatePayload,
 } from "@/features/consultations/api/useUpdateConsultation";
 import type { Diagnosis, Medication } from "@/features/consultations/types";
@@ -49,6 +50,7 @@ export default function ConsultationReviewPage() {
 
   const generateMutation = useGeneratePrescription();
   const updateMutation = useUpdateConsultation(id);
+  const approveMutation = useApproveConsultation(id);
 
   const [isEditing, setIsEditing] = useState(false);
   const [isShareModalOpen, setIsShareModalOpen] = useState(false);
@@ -155,11 +157,19 @@ export default function ConsultationReviewPage() {
             </div>
           </div>
           <div className="flex items-center gap-4">
-            <span className="px-3 py-1.5 rounded-full bg-emerald-50 text-emerald-700 text-xs font-bold tracking-wide uppercase border border-emerald-100">
-              {consultation.status}
+            <span
+              className={`px-3 py-1.5 rounded-full text-xs font-bold tracking-wide uppercase border ${
+                consultation.status === "COMPLETE"
+                  ? "bg-emerald-50 text-emerald-700 border-emerald-200"
+                  : consultation.status === "AWAITING_REVIEW"
+                  ? "bg-amber-50 text-amber-700 border-amber-200"
+                  : "bg-slate-100 text-slate-700 border-slate-200"
+              }`}
+            >
+              {consultation.status === "AWAITING_REVIEW" ? "Awaiting Review" : consultation.status}
             </span>
 
-            {consultation.status === "COMPLETE" && (
+            {(consultation.status === "COMPLETE" || consultation.status === "AWAITING_REVIEW") && (
               <>
                 {isEditing ? (
                   <div className="flex items-center gap-2">
@@ -183,12 +193,28 @@ export default function ConsultationReviewPage() {
                     </button>
                   </div>
                 ) : (
-                  <button
-                    onClick={handleEditStart}
-                    className="inline-flex items-center gap-2 px-4 py-2 bg-indigo-50 text-indigo-700 rounded-xl font-semibold text-sm hover:bg-indigo-100 transition-colors border border-indigo-200"
-                  >
-                    <Edit2 className="w-4 h-4" /> Edit
-                  </button>
+                  <div className="flex items-center gap-2">
+                    <button
+                      onClick={handleEditStart}
+                      className="inline-flex items-center gap-2 px-4 py-2 bg-indigo-50 text-indigo-700 rounded-xl font-semibold text-sm hover:bg-indigo-100 transition-colors border border-indigo-200"
+                    >
+                      <Edit2 className="w-4 h-4" /> Edit
+                    </button>
+                    {consultation.status === "AWAITING_REVIEW" && (
+                      <button
+                        onClick={() => approveMutation.mutate()}
+                        disabled={approveMutation.isPending}
+                        className="inline-flex items-center gap-2 px-4 py-2 bg-emerald-600 text-white rounded-xl font-semibold text-sm hover:bg-emerald-700 transition-colors shadow-sm disabled:opacity-50"
+                      >
+                        {approveMutation.isPending ? (
+                          <Loader2 className="w-4 h-4 animate-spin" />
+                        ) : (
+                          <CheckCircle2 className="w-4 h-4" />
+                        )}
+                        Approve & Sign Off
+                      </button>
+                    )}
+                  </div>
                 )}
 
                 {!isEditing &&

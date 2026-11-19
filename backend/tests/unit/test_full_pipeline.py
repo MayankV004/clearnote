@@ -201,7 +201,7 @@ class TestFullPipelineHappyPath:
         refreshed = await db_session.scalar(
             select(Consultation).where(Consultation.id == consultation.id)
         )
-        assert refreshed.status == ConsultationStatus.COMPLETE
+        assert refreshed.status == ConsultationStatus.AWAITING_REVIEW
 
     async def test_soap_note_content_matches_llm_output(self, db_session, mocker):
         """SOAP fields must exactly match what the (mocked) LLM returned."""

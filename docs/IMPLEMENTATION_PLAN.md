@@ -172,7 +172,7 @@ flowchart TD
 
 ---
 
-### TICKET-06: Introduce `AWAITING_REVIEW` State & Enforce Human Sign-Off
+### [x] TICKET-06: Introduce `AWAITING_REVIEW` State & Enforce Human Sign-Off (COMPLETED)
 - **Priority**: P0 (Clinical Safety)
 - **Gap Reference**: `AI-01`
 - **Scope**: Update consultation lifecycle so AI extraction transitions status to `AWAITING_REVIEW`. Status becomes `COMPLETED` only after explicit doctor review (`POST /consultations/{id}/approve`).
@@ -180,6 +180,10 @@ flowchart TD
   - `backend/app/models/consultation.py:19`
   - `backend/app/services/consultation_service.py:382`
   - `backend/app/api/routes/consultations.py`
+  - `frontend/src/features/consultations/types.ts`
+  - `frontend/src/features/consultations/components/ConsultationList.tsx`
+  - `frontend/src/app/(site)/dashboard/consultations/[id]/page.tsx`
+  - `backend/alembic/versions/c1a2b3d4e5f6_add_awaiting_review_to_consultationstatus.py`
 - **Dependencies**: None.
 - **Acceptance Criteria**:
   - Added enum value `AWAITING_REVIEW` to `ConsultationStatus`.

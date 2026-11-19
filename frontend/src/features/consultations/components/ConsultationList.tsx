@@ -64,7 +64,7 @@ export function ConsultationList({ patientId }: { patientId: string }) {
           <div 
             key={consultation.id} 
             onClick={() => {
-              if (consultation.status === "COMPLETE") {
+              if (consultation.status === "COMPLETE" || consultation.status === "AWAITING_REVIEW") {
                 router.push(`/dashboard/consultations/${consultation.id}`);
               }
             }}
@@ -77,8 +77,13 @@ export function ConsultationList({ patientId }: { patientId: string }) {
                   Complete
                 </span>
               )}
+              {consultation.status === "AWAITING_REVIEW" && (
+                <span className="px-2.5 py-1 rounded-full bg-amber-50 text-amber-700 text-[10px] font-bold tracking-wide uppercase">
+                  Awaiting Review
+                </span>
+              )}
               {consultation.status === "PROCESSING" && (
-                <span className="px-2.5 py-1 rounded-full bg-amber-50 text-amber-700 text-[10px] font-bold tracking-wide uppercase flex items-center gap-1.5">
+                <span className="px-2.5 py-1 rounded-full bg-blue-50 text-blue-700 text-[10px] font-bold tracking-wide uppercase flex items-center gap-1.5">
                   <Loader2 className="w-3 h-3 animate-spin" /> Processing
                 </span>
               )}
@@ -94,7 +99,7 @@ export function ConsultationList({ patientId }: { patientId: string }) {
               )}
             </div>
 
-            {consultation.status === "COMPLETE" && consultation.soap_note?.raw_transcript ? (
+            {(consultation.status === "COMPLETE" || consultation.status === "AWAITING_REVIEW") && consultation.soap_note?.raw_transcript ? (
               <p className="text-sm text-slate-600 line-clamp-2 leading-relaxed">
                 &quot;{consultation.soap_note.raw_transcript}&quot;
               </p>

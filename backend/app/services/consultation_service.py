@@ -380,8 +380,8 @@ async def _run_transcription(consultation_id: str, s3_key: str) -> None:
                 )
     
 
-            # 8. Mark COMPLETE — the consultation is refreshed so this is safe
-            consultation.status = ConsultationStatus.COMPLETE
+            # 8. Mark AWAITING_REVIEW — clinical documentation requires doctor sign-off
+            consultation.status = ConsultationStatus.AWAITING_REVIEW
             await db.commit()
             
             # Send SMS reminders if there are medications and a patient phone number
@@ -392,7 +392,7 @@ async def _run_transcription(consultation_id: str, s3_key: str) -> None:
                 )
 
             logger.info(
-                f"Consultation {consultation_id}: pipeline complete — status=COMPLETE."
+                f"Consultation {consultation_id}: pipeline complete — status=AWAITING_REVIEW."
             )
 
             # ── Invalidate cache so next poll returns fresh COMPLETE data ──────

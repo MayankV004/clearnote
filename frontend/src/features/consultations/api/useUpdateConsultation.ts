@@ -48,3 +48,24 @@ export function useUpdateConsultation(consultationId: string) {
     },
   });
 }
+
+export function useApproveConsultation(consultationId: string) {
+  const api = useApiClient();
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: () =>
+      api.post<Consultation>(`/consultations/${consultationId}/approve`),
+    onSuccess: (approved) => {
+      queryClient.invalidateQueries({
+        queryKey: ["consultation", consultationId],
+      });
+      queryClient.setQueryData(["consultation", consultationId], approved);
+      toast.success("Consultation approved and signed off.");
+    },
+    onError: (err: Error) => {
+      toast.error(err.message || "Failed to approve consultation.");
+    },
+  });
+}
+
