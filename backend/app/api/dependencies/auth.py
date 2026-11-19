@@ -63,6 +63,23 @@ async def get_current_user(request: Request) -> RequestState:
 
 # Convenience type alias — use this in route signatures instead of the
 # verbose Annotated[...] form.
+from uuid import UUID
+from sqlalchemy import text
+
+async def set_rls_doctor_id(db: AsyncSession, doctor_id: UUID | str) -> None:
+    """
+    Set PostgreSQL Row-Level Security session variable 'app.current_doctor_id'
+    for the current transaction to enforce tenant isolation at the database layer.
+    """
+    try:
+        await db.execute(
+            text("SELECT set_config('app.current_doctor_id', :doctor_id, true)"),
+            {"doctor_id": str(doctor_id)},
+        )
+    except Exception as e:
+        logger.debug(f"RLS set_config skipped (e.g. SQLite engine): {e}")
+
+
 CurrentUser = Annotated[RequestState, Depends(get_current_user)]
 
 async def get_current_doctor(
@@ -78,7 +95,6 @@ async def get_current_doctor(
     """
     from app.services.cache_service import cache, key_doctor, TTL_DOCTOR
     from app.schemas.doctor import DoctorResponse
-    from sqlalchemy import text
 
     clerk_user_id = state.payload["sub"]
     cache_key = key_doctor(clerk_user_id)
@@ -88,10 +104,7 @@ async def get_current_doctor(
     if cached is not None:
         doctor_resp = DoctorResponse.model_validate(cached)
         request.state.user_id = str(doctor_resp.id)
-        try:
-            await db.execute(text(f"SELECT set_config('app.current_doctor_id', '{doctor_resp.id}', true)"))
-        except Exception as e:
-            logger.warning(f"Failed to set RLS config for {doctor_resp.id}: {e}")
+        await set_rls_doctor_id(db, doctor_resp.id)
         return doctor_resp
 
     # ── Cache miss → DB ──────────────────────────────────────────────────────
@@ -113,10 +126,7 @@ async def get_current_doctor(
         logger.warning(f"Could not cache doctor {clerk_user_id}: {exc}")
 
     # Inject RLS configuration into the current database transaction
-    try:
-        await db.execute(text(f"SELECT set_config('app.current_doctor_id', '{doctor.id}', true)"))
-    except Exception as e:
-        logger.warning(f"Failed to set RLS config for {doctor.id}: {e}")
+    await set_rls_doctor_id(db, doctor.id)
 
     return doctor
 
@@ -168,6 +178,8 @@ async def get_current_doctor_ws(
             code=status.WS_1008_POLICY_VIOLATION,
             reason="Doctor profile not found",
         )
+
+    await set_rls_doctor_id(db, doctor.id)
 
     return doctor
 
