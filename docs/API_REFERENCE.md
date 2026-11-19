@@ -341,14 +341,14 @@ Every response includes:
 
 ### 5.5 Live Audio WebSocket Streaming
 - **Endpoint**: `WS /consultations/{consultation_id}/stream`
-- **Auth**: Unauthenticated parameter check (`Consultation.id == consultation_id`).
+- **Auth**: Clerk JWT via `?token=<clerk_jwt>` query param or `Sec-WebSocket-Protocol` header. Verified doctor ownership (`Consultation.doctor_id == current_doctor.id`).
 - **Protocol**:
-  - Client connects: `ws://localhost:8000/consultations/{consultation_id}/stream`
+  - Client connects: `ws://localhost:8000/consultations/{consultation_id}/stream?token=<jwt>`
   - Client sends: Raw binary audio bytes (`data: bytearray`)
   - Server streams chunks to Deepgram `nova-3-medical`.
   - On WebSocket close / disconnect: Server writes accumulated audio to S3, saves transcript, and launches background clinical extraction.
 - **Connection Closure Reasons**:
-  - `1008 Policy Violation`: Consultation UUID not found in database.
+  - `1008 Policy Violation`: Missing/invalid token or consultation unowned/not found in database.
 
 ### 5.6 Generate Prescription PDF
 - **Endpoint**: `POST /consultations/{consultation_id}/prescription`
@@ -378,10 +378,13 @@ Every response includes:
 
 ### 5.8 Public Prescription Access
 - **Endpoint**: `GET /consultations/public/{consultation_id}/prescription`
-- **Auth**: None (Public)
+- **Auth**: HMAC-SHA256 signed access token via `?token=<signed_token>` (7-day validity).
+- **Rate Limit**: 10 requests / minute per IP.
 - **Response**: `HTTP 307 Temporary Redirect` to AWS S3 pre-signed PDF URL.
 - **Errors**:
-  - `404 Not Found`: `{"message": "Prescription not generated yet."}`
+  - `401 Unauthorized`: `{"message": "Invalid or expired prescription access token."}`
+  - `404 Not Found`: `{"message": "Consultation not found."}` or `{"message": "Prescription not generated yet."}`
+  - `429 Too Many Requests`: Exceeded 10 requests/minute limit.
 
 ### 5.9 Ingest Clinical Guidelines PDF (RAG Knowledge Base)
 - **Endpoint**: `POST /consultations/ingest-guidelines`
