@@ -59,6 +59,20 @@ graph TD
 - **Body Base** (`14px` / `line-height: 20px` / `Font-Weight: 400`): Table rows, form labels, dialog copy.
 - **Caption / Mono** (`12px` / `line-height: 16px` / `Font-Weight: 500` / `Roboto Mono`): ICD-10 codes, dosages, timestamps, drug interaction tags.
 
+### 2.3 Route Implementation Status Tracker
+
+| Route ID | Route Path | Name / Scope | Status | Notes |
+| :--- | :--- | :--- | :--- | :--- |
+| **SYS-01** | `/dev/components` | Foundation & Component Gallery | **Shipped** | Tokens, base primitives, clinical AI widgets, motion |
+| **RT-01** | `/sign-in` & `/sign-up` | Clinical Authentication & SSO | Not started | Phase B Ticket 1 |
+| **RT-02** | `/dashboard` | Clinical Hub & Encounters Roster | Not started | Phase B Ticket 2 |
+| **RT-03** | `/dashboard/consultations/[id]` | Split-Screen Consultation Reviewer | Not started | Phase B Ticket 3 |
+| **RT-04** | `/dashboard/patients/[id]` | Patient Profile & History | Not started | Phase B Ticket 4 |
+| **RT-05** | `/onboarding` | Doctor Profile & Signature Wizard | Not started | Phase B Ticket 5 |
+| **RT-06** | `/dashboard/settings` | Doctor Practice Settings | Not started | Phase B Ticket 6 |
+| **RT-07** | `/_not-found`, `/error` | System Error & Offline States | Not started | Phase B Ticket 7 |
+| **RT-08** | `/` | Clinical Landing & Value Proof | Not started | Phase B Ticket 8 |
+
 ---
 
 ## 3. Route-by-Route UX/UI Overhaul
