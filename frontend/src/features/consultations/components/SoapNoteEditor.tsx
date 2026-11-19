@@ -1,7 +1,9 @@
 "use client";
 
-import { Sparkles, CheckCheck } from "lucide-react";
+import React from "react";
+import { FileText } from "lucide-react";
 import type { SOAPNote } from "../types";
+import { Badge } from "@/components/ui/Badge";
 
 interface SoapNoteEditorProps {
   soapNote?: SOAPNote | null;
@@ -26,63 +28,80 @@ export function SoapNoteEditor({
   const sections = [
     {
       key: "subjective" as const,
-      label: "Subjective (S)",
-      subtitle: "Patient-reported symptoms, chief complaint, and history",
-      placeholder: "e.g. Patient reports dry cough for 3 days...",
+      code: "S",
+      label: "Subjective",
+      subtitle: "Patient-reported symptoms, chief complaint, timeline",
+      placeholder: "e.g. Patient presents with productive cough for 5 days...",
     },
     {
       key: "objective" as const,
-      label: "Objective (O)",
-      subtitle: "Measurable vitals, physical examination, and lab findings",
-      placeholder: "e.g. BP 120/80, HR 72, lungs clear bilaterally...",
+      code: "O",
+      label: "Objective",
+      subtitle: "Measurable vitals, physical examination, diagnostic findings",
+      placeholder: "e.g. Temp: 100.4F, BP: 128/84, Bilateral coarse rhonchi...",
     },
     {
       key: "assessment" as const,
-      label: "Assessment (A)",
-      subtitle: "Clinical synthesis, diagnostic impression, and condition status",
-      placeholder: "e.g. Acute bronchitis, essential hypertension...",
+      code: "A",
+      label: "Assessment",
+      subtitle: "Clinical synthesis, ICD-10 diagnosis, differential diagnosis",
+      placeholder: "e.g. Acute bronchitis (J20.9), resolving URI...",
     },
     {
       key: "plan" as const,
-      label: "Plan (P)",
-      subtitle: "Prescriptions, investigations, patient instructions, follow-up",
-      placeholder: "e.g. Prescribe Azithromycin 500mg daily, follow up in 1 week...",
+      code: "P",
+      label: "Plan",
+      subtitle: "Therapeutic interventions, prescriptions, follow-up schedule",
+      placeholder: "e.g. Azithromycin 500mg daily, follow-up in 10 days if symptoms persist...",
     },
   ];
 
   return (
-    <div className="space-y-6">
-      {/* Header with Provenance Badge */}
-      <div className="flex items-center justify-between pb-3 border-b border-slate-200">
+    <div className="space-y-4">
+      {/* SOAP Header with AI Provenance */}
+      <div className="flex items-center justify-between pb-3 border-b border-border/60">
         <div>
-          <h2 className="text-lg font-bold text-slate-900">SOAP Clinical Documentation</h2>
-          <p className="text-xs text-slate-500">Universal standard medical progress note</p>
+          <h2 className="text-sm font-bold text-foreground flex items-center gap-2">
+            <FileText className="w-4 h-4 text-primary" />
+            SOAP Clinical Progress Documentation
+          </h2>
+          <p className="text-[11px] text-muted-foreground font-mono">
+            Standard medical progress record with discrete clinical entities
+          </p>
         </div>
+
         <div>
           {isVerified ? (
-            <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-semibold bg-emerald-50 text-emerald-700 border border-emerald-200">
-              <CheckCheck className="w-3.5 h-3.5 text-emerald-600" />
+            <Badge variant="success" size="sm" dot>
               Clinician Verified
-            </span>
+            </Badge>
           ) : (
-            <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-semibold bg-indigo-50 text-indigo-700 border border-indigo-200">
-              <Sparkles className="w-3.5 h-3.5 text-indigo-500" />
-              AI Drafted
-            </span>
+            <Badge variant="ai" size="sm">
+              AI Draft (Awaiting Review)
+            </Badge>
           )}
         </div>
       </div>
 
-      {/* 4 SOAP Blocks */}
-      <div className="space-y-4">
-        {sections.map(({ key, label, subtitle, placeholder }) => (
+      {/* 4 Discrete SOAP Section Blocks */}
+      <div className="space-y-3.5">
+        {sections.map(({ key, code, label, subtitle, placeholder }) => (
           <div
             key={key}
-            className="rounded-2xl border border-slate-200/90 bg-white p-4 shadow-sm hover:border-slate-300 transition-colors"
+            className="rounded-[var(--radius-md)] border border-border bg-card p-4 shadow-xs space-y-2 hover:border-border/80 transition-colors"
           >
-            <div className="mb-2">
-              <span className="font-bold text-sm text-slate-900">{label}</span>
-              <p className="text-xs text-slate-400">{subtitle}</p>
+            <div className="flex items-center justify-between">
+              <div className="flex items-baseline gap-2">
+                <span className="w-5 h-5 rounded-[var(--radius-xs)] bg-primary/10 text-primary flex items-center justify-center font-mono font-bold text-[11px]">
+                  {code}
+                </span>
+                <span className="font-bold text-xs text-foreground uppercase tracking-wider">
+                  {label}
+                </span>
+              </div>
+              <span className="text-[10px] text-muted-foreground font-mono hidden sm:inline">
+                {subtitle}
+              </span>
             </div>
 
             {isEditing ? (
@@ -91,14 +110,16 @@ export function SoapNoteEditor({
                 onChange={(e) => onChange(key, e.target.value)}
                 placeholder={placeholder}
                 rows={3}
-                className="w-full text-sm text-slate-800 bg-slate-50 border border-slate-200 rounded-xl p-3 focus:outline-none focus:ring-2 focus:ring-teal-500/20 focus:border-teal-500 leading-relaxed font-sans"
+                className="w-full text-xs font-sans text-foreground bg-background border border-input rounded-[var(--radius-sm)] p-2.5 focus:outline-none focus:ring-1 focus:ring-ring leading-relaxed resize-y"
               />
             ) : (
-              <p className="text-sm text-slate-700 leading-relaxed whitespace-pre-wrap font-sans">
+              <div className="text-xs text-foreground/90 leading-relaxed font-sans whitespace-pre-wrap min-h-[44px] p-1 rounded-[var(--radius-xs)] bg-muted/20 border border-transparent">
                 {values[key] || soapNote?.[key] || (
-                  <span className="text-slate-400 italic">No notes recorded.</span>
+                  <span className="text-muted-foreground italic font-mono text-[11px]">
+                    No documentation recorded for this section.
+                  </span>
                 )}
-              </p>
+              </div>
             )}
           </div>
         ))}

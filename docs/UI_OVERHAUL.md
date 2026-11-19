@@ -66,7 +66,7 @@ graph TD
 | **SYS-01** | `/dev/components` | Foundation & Component Gallery | **Shipped** | Tokens, base primitives, clinical AI widgets, motion |
 | **RT-01** | `/sign-in` & `/sign-up` | Clinical Authentication & SSO | Shipped | Phase B Ticket 1 |
 | **RT-02** | `/dashboard` | Clinical Hub & Encounters Roster | Shipped | Phase B Ticket 2 |
-| **RT-03** | `/dashboard/consultations/[id]` | Split-Screen Consultation Reviewer | Not started | Phase B Ticket 3 |
+| **RT-03** | `/dashboard/consultations/[id]` | Split-Screen Consultation Reviewer | Shipped | Phase B Ticket 3 |
 | **RT-04** | `/dashboard/patients/[id]` | Patient Profile & History | Not started | Phase B Ticket 4 |
 | **RT-05** | `/onboarding` | Doctor Profile & Signature Wizard | Not started | Phase B Ticket 5 |
 | **RT-06** | `/dashboard/settings` | Doctor Practice Settings | Not started | Phase B Ticket 6 |

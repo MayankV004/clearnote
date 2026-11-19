@@ -1,14 +1,20 @@
 "use client";
 
-import { useState, useRef, useEffect } from "react";
-import { Play, Pause, Volume2, FastForward } from "lucide-react";
+import React, { useState, useRef, useEffect } from "react";
+import { Play, Pause, FastForward } from "lucide-react";
+import { cn } from "@/lib/utils";
 
 interface ClinicalAudioPlayerProps {
   audioUrl?: string | null;
   onTimeUpdate?: (currentTimeSeconds: number) => void;
+  className?: string;
 }
 
-export function ClinicalAudioPlayer({ audioUrl, onTimeUpdate }: ClinicalAudioPlayerProps) {
+export function ClinicalAudioPlayer({
+  audioUrl,
+  onTimeUpdate,
+  className,
+}: ClinicalAudioPlayerProps) {
   const audioRef = useRef<HTMLAudioElement | null>(null);
   const [isPlaying, setIsPlaying] = useState(false);
   const [currentTime, setCurrentTime] = useState(0);
@@ -77,57 +83,68 @@ export function ClinicalAudioPlayer({ audioUrl, onTimeUpdate }: ClinicalAudioPla
 
   if (!audioUrl) {
     return (
-      <div className="rounded-2xl border border-dashed border-slate-200 bg-slate-50 p-4 text-center">
-        <p className="text-xs text-slate-400">Audio recording not stored or not available.</p>
+      <div className={cn("rounded-[var(--radius-md)] border border-dashed border-border bg-card/60 p-4 text-center", className)}>
+        <p className="text-xs text-muted-foreground font-mono">
+          Audio recording not stored or not available.
+        </p>
       </div>
     );
   }
 
   return (
-    <div className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm space-y-3">
+    <div
+      className={cn(
+        "rounded-[var(--radius-md)] border border-border bg-card p-3.5 shadow-xs space-y-2.5",
+        className
+      )}
+    >
       <audio ref={audioRef} src={audioUrl} preload="metadata" />
 
-      <div className="flex items-center justify-between">
-        <div className="flex items-center gap-2">
+      <div className="flex items-center justify-between gap-3">
+        {/* Play/Pause Button */}
+        <div className="flex items-center gap-2.5">
           <button
+            type="button"
             onClick={togglePlay}
-            className="w-9 h-9 rounded-full bg-teal-600 text-white flex items-center justify-center hover:bg-teal-700 transition-colors shadow-sm"
+            className="w-8 h-8 rounded-[var(--radius-xs)] bg-primary text-primary-foreground flex items-center justify-center hover:opacity-90 transition-opacity shadow-xs"
             aria-label={isPlaying ? "Pause audio" : "Play audio"}
           >
-            {isPlaying ? <Pause className="w-4 h-4" /> : <Play className="w-4 h-4 ml-0.5" />}
+            {isPlaying ? <Pause className="w-3.5 h-3.5" /> : <Play className="w-3.5 h-3.5 ml-0.5" />}
           </button>
-          <div className="text-xs font-mono text-slate-600">
-            <span>{formatTime(currentTime)}</span>
-            <span className="text-slate-400 mx-1">/</span>
-            <span className="text-slate-400">{formatTime(duration)}</span>
+
+          {/* Time Display */}
+          <div className="text-xs font-mono text-muted-foreground">
+            <span className="font-semibold text-foreground">{formatTime(currentTime)}</span>
+            <span className="mx-1">/</span>
+            <span>{formatTime(duration)}</span>
           </div>
         </div>
 
-        <div className="flex items-center gap-2">
-          <button
-            onClick={cycleSpeed}
-            className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg border border-slate-200 bg-slate-50 text-xs font-semibold text-slate-700 hover:bg-slate-100 transition-colors"
-            title="Adjust playback speed"
-          >
-            <FastForward className="w-3 h-3 text-slate-500" />
-            <span>{playbackRate}x</span>
-          </button>
-          <div className="text-slate-400 p-1">
-            <Volume2 className="w-4 h-4" />
-          </div>
-        </div>
+        {/* Speed Selector */}
+        <button
+          type="button"
+          onClick={cycleSpeed}
+          className="flex items-center gap-1 px-2 py-1 rounded-[var(--radius-xs)] border border-border bg-muted/60 hover:bg-muted text-[11px] font-mono font-semibold text-foreground transition-colors"
+          title="Playback Speed"
+        >
+          <FastForward className="w-3 h-3 text-muted-foreground" />
+          <span>{playbackRate.toFixed(2)}x</span>
+        </button>
       </div>
 
-      {/* Progress Slider */}
-      <input
-        type="range"
-        min={0}
-        max={duration || 100}
-        step={0.1}
-        value={currentTime}
-        onChange={handleSeek}
-        className="w-full h-1.5 bg-slate-100 rounded-lg appearance-none cursor-pointer accent-teal-600"
-      />
+      {/* Scrub Range Bar */}
+      <div className="flex items-center gap-2">
+        <input
+          type="range"
+          min={0}
+          max={duration || 100}
+          step={0.1}
+          value={currentTime}
+          onChange={handleSeek}
+          className="w-full h-1.5 bg-muted rounded-[var(--radius-xs)] appearance-none cursor-pointer accent-primary"
+          aria-label="Seek audio"
+        />
+      </div>
     </div>
   );
 }

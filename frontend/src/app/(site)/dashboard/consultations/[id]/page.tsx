@@ -1,25 +1,22 @@
 "use client";
 
-import { useState } from "react";
+import React, { useState } from "react";
 import { useParams, useRouter } from "next/navigation";
 import {
   ArrowLeft,
-  Loader2,
   Pill,
   Stethoscope,
-  AlertCircle,
   FileDown,
-  CheckCircle2,
   Edit2,
   Save,
   X,
   Plus,
   Trash2,
-  RefreshCw,
   Share2,
   Copy,
   Check,
   FileAudio,
+  FileText,
 } from "lucide-react";
 import { useConsultation } from "@/features/consultations/api/useConsultation";
 import { useConsultationAudio } from "@/features/consultations/api/useConsultationAudio";
@@ -35,6 +32,10 @@ import {
 import { ClinicalAudioPlayer } from "@/features/consultations/components/ClinicalAudioPlayer";
 import { SoapNoteEditor } from "@/features/consultations/components/SoapNoteEditor";
 import { DrugInteractionBanner } from "@/features/consultations/components/DrugInteractionBanner";
+import { ReviewStatusBar } from "@/components/clinical/ReviewStatusBar";
+import { Badge } from "@/components/ui/Badge";
+import { Button } from "@/components/ui/Button";
+import { ErrorState } from "@/components/ui/States";
 import type { Diagnosis, Medication } from "@/features/consultations/types";
 import { formatDate } from "@/lib/utils";
 import { toast } from "sonner";
@@ -46,12 +47,12 @@ export default function ConsultationReviewPage() {
   const { id } = useParams<{ id: string }>();
   const router = useRouter();
 
-  const { data: consultation, isLoading, isError, error } = useConsultation(id);
+  const { data: consultation, isLoading, isError, error, refetch } = useConsultation(id);
   const { data: audioData } = useConsultationAudio(
-    consultation?.audio_s3_key ? id : null,
+    consultation?.audio_s3_key ? id : null
   );
   const { data: prescription, refetch: refetchPrescription } = usePrescription(
-    consultation?.status === "COMPLETE" ? id : null,
+    consultation?.status === "COMPLETE" ? id : null
   );
 
   const generateMutation = useGeneratePrescription();
@@ -62,14 +63,17 @@ export default function ConsultationReviewPage() {
   const [isShareModalOpen, setIsShareModalOpen] = useState(false);
   const [isCopied, setIsCopied] = useState(false);
   const [isCriticalAcked, setIsCriticalAcked] = useState(false);
-  const [editData, setEditData] = useState<ConsultationUpdatePayload | null>(
-    null,
-  );
+  const [editData, setEditData] = useState<ConsultationUpdatePayload | null>(null);
 
   const hasCriticalInteractions =
     consultation?.interactions?.some(
-      (i) => i.severity === "SEVERE" || i.severity === "CRITICAL",
+      (i) => i.severity === "SEVERE" || i.severity === "CRITICAL"
     ) ?? false;
+
+  const criticalAlertCount =
+    consultation?.interactions?.filter(
+      (i) => i.severity === "SEVERE" || i.severity === "CRITICAL"
+    ).length ?? 0;
 
   const handleEditStart = () => {
     setEditData({
@@ -93,7 +97,7 @@ export default function ConsultationReviewPage() {
     try {
       await generateMutation.mutateAsync(id);
       refetchPrescription();
-      toast.success("Prescription generated successfully!");
+      toast.success("Prescription PDF generated successfully.");
     } catch (err) {
       const msg =
         err instanceof Error ? err.message : "Failed to generate prescription.";
@@ -110,7 +114,7 @@ export default function ConsultationReviewPage() {
         diagnoses: editData.diagnoses,
       });
       setIsEditing(false);
-      toast.success("Clinical note updated successfully.");
+      toast.success("Clinical documentation updated successfully.");
     } catch {
       // Toast fired by mutation onError
     }
@@ -118,208 +122,190 @@ export default function ConsultationReviewPage() {
 
   if (isLoading) {
     return (
-      <div className="min-h-screen bg-slate-50 flex items-center justify-center">
-        <Loader2 className="w-8 h-8 animate-spin text-teal-600" />
+      <div className="mx-auto max-w-7xl px-4 sm:px-6 py-8 space-y-6 animate-pulse">
+        <div className="h-6 w-48 bg-muted rounded" />
+        <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
+          <div className="lg:col-span-5 space-y-4">
+            <div className="h-40 bg-card border border-border rounded-[var(--radius-md)] p-4" />
+            <div className="h-64 bg-card border border-border rounded-[var(--radius-md)] p-4" />
+          </div>
+          <div className="lg:col-span-7 space-y-4">
+            <div className="h-24 bg-card border border-border rounded-[var(--radius-md)] p-4" />
+            <div className="h-80 bg-card border border-border rounded-[var(--radius-md)] p-4" />
+          </div>
+        </div>
       </div>
     );
   }
 
   if (isError || !consultation) {
-    const message = isError
-      ? error instanceof Error
-        ? error.message
-        : "Failed to load consultation."
-      : "Consultation not found.";
     return (
-      <div className="min-h-screen bg-slate-50 flex flex-col items-center justify-center">
-        <AlertCircle className="w-8 h-8 text-rose-500 mb-3" />
-        <p className="text-rose-600 font-semibold">{message}</p>
-        <button
-          onClick={() => router.back()}
-          className="mt-4 text-sm text-teal-600 hover:underline"
-        >
-          Go Back
-        </button>
+      <div className="mx-auto max-w-3xl px-4 py-16">
+        <ErrorState
+          title="Consultation Record Not Found"
+          message={
+            isError
+              ? error instanceof Error
+                ? error.message
+                : "Failed to load clinical encounter."
+              : "The requested consultation could not be located in this clinical workspace."
+          }
+          onRetry={() => refetch()}
+        />
+        <div className="mt-4 text-center">
+          <Button variant="outline" size="sm" onClick={() => router.push("/dashboard")}>
+            <ArrowLeft className="w-3.5 h-3.5 mr-1" />
+            Return to Dashboard Roster
+          </Button>
+        </div>
       </div>
     );
   }
 
   const { soap_note, medications, diagnoses, interactions } = consultation;
   const isVerified =
-    consultation.status === "COMPLETE" ||
-    Boolean(soap_note?.edited_by_doctor);
+    consultation.status === "COMPLETE" || Boolean(soap_note?.edited_by_doctor);
 
   const canApprove =
     consultation.status === "AWAITING_REVIEW" &&
     (!hasCriticalInteractions || isCriticalAcked);
 
+  // Verification tally (4 SOAP sections + diagnoses + medications)
+  const totalReviewItems = 6;
+  const verifiedReviewItems = isVerified ? 6 : isEditing ? 5 : 4;
+
   return (
-    <div className="min-h-screen bg-slate-50 text-slate-900 selection:bg-teal-500/30">
-      {/* Top Bar / Review Header */}
-      <header className="sticky top-0 z-40 bg-white/90 backdrop-blur-md border-b border-slate-200">
-        <div className="mx-auto max-w-7xl px-6 py-4 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
+    <div className="min-h-[calc(100vh-3.5rem)] flex flex-col justify-between">
+      <div className="mx-auto max-w-7xl w-full px-4 sm:px-6 py-6 space-y-6">
+        {/* Top Encounter Navigation & Status Bar */}
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-4 border-b border-border/60">
           <div className="flex items-center gap-3">
             <button
-              onClick={() => router.back()}
-              className="p-2 rounded-xl hover:bg-slate-100 text-slate-500 hover:text-slate-900 transition-colors"
-              aria-label="Back to consultations"
+              type="button"
+              onClick={() => router.push("/dashboard")}
+              className="p-1.5 rounded-[var(--radius-xs)] border border-border bg-card text-muted-foreground hover:text-foreground hover:bg-muted transition-colors"
+              title="Return to Clinical Roster"
+              aria-label="Back to clinical roster"
             >
-              <ArrowLeft className="w-5 h-5" />
+              <ArrowLeft className="w-4 h-4" />
             </button>
             <div>
               <div className="flex items-center gap-2">
-                <p className="text-xs text-slate-400 font-medium">
+                <span className="text-[11px] font-mono uppercase tracking-wider text-muted-foreground">
                   Clinical Encounter Review
-                </p>
-                <span className="text-slate-300">•</span>
-                <span className="text-xs font-mono text-slate-500">
-                  {id.slice(0, 8)}
+                </span>
+                <span className="text-muted-foreground">•</span>
+                <span className="text-[11px] font-mono text-muted-foreground font-semibold">
+                  ENC-{id.slice(0, 8).toUpperCase()}
                 </span>
               </div>
-              <h1 className="text-lg font-bold text-slate-900 leading-tight">
-                {formatDate(consultation.created_at)}
+              <h1 className="text-xl font-bold tracking-tight text-foreground">
+                Visit on {formatDate(consultation.created_at)}
               </h1>
             </div>
           </div>
 
-          <div className="flex items-center gap-3 flex-wrap">
-            <span
-              className={`px-3 py-1 rounded-full text-xs font-bold tracking-wide uppercase border ${
-                consultation.status === "COMPLETE"
-                  ? "bg-emerald-50 text-emerald-700 border-emerald-200"
-                  : consultation.status === "AWAITING_REVIEW"
-                  ? "bg-amber-50 text-amber-700 border-amber-200"
-                  : "bg-slate-100 text-slate-700 border-slate-200"
-              }`}
-            >
-              {consultation.status === "AWAITING_REVIEW"
-                ? "Awaiting Clinician Review"
-                : consultation.status}
-            </span>
+          {/* Quick Header Actions */}
+          <div className="flex items-center gap-2 flex-wrap">
+            {consultation.status === "COMPLETE" ? (
+              <Badge variant="success" size="md" dot>
+                Complete & Signed
+              </Badge>
+            ) : consultation.status === "AWAITING_REVIEW" ? (
+              <Badge variant="warning" size="md" dot>
+                Awaiting Clinician Review
+              </Badge>
+            ) : (
+              <Badge variant="default" size="md">
+                {consultation.status}
+              </Badge>
+            )}
 
-            {(consultation.status === "COMPLETE" ||
-              consultation.status === "AWAITING_REVIEW") && (
-              <>
-                {isEditing ? (
-                  <div className="flex items-center gap-2">
-                    <button
-                      onClick={() => setIsEditing(false)}
-                      className="inline-flex items-center gap-2 px-3.5 py-2 bg-slate-100 text-slate-700 rounded-xl font-semibold text-xs hover:bg-slate-200 transition-colors"
-                    >
-                      <X className="w-4 h-4" /> Cancel
-                    </button>
-                    <button
-                      onClick={handleSave}
-                      disabled={updateMutation.isPending}
-                      className="inline-flex items-center gap-2 px-4 py-2 bg-teal-600 text-white rounded-xl font-semibold text-xs hover:bg-teal-700 transition-colors disabled:opacity-50"
-                    >
-                      {updateMutation.isPending ? (
-                        <Loader2 className="w-4 h-4 animate-spin" />
-                      ) : (
-                        <Save className="w-4 h-4" />
-                      )}
-                      Save Changes
-                    </button>
-                  </div>
-                ) : (
-                  <div className="flex items-center gap-2">
-                    <button
-                      onClick={handleEditStart}
-                      className="inline-flex items-center gap-2 px-3.5 py-2 bg-indigo-50 text-indigo-700 rounded-xl font-semibold text-xs hover:bg-indigo-100 transition-colors border border-indigo-200"
-                    >
-                      <Edit2 className="w-3.5 h-3.5" /> Edit Documentation
-                    </button>
+            {!isEditing && (
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={handleEditStart}
+                className="text-xs"
+              >
+                <Edit2 className="w-3.5 h-3.5 mr-1" />
+                Edit Notes
+              </Button>
+            )}
 
-                    {consultation.status === "AWAITING_REVIEW" && (
-                      <button
-                        onClick={() => approveMutation.mutate()}
-                        disabled={approveMutation.isPending || !canApprove}
-                        title={
-                          !canApprove
-                            ? "Acknowledge critical drug interactions before sign-off"
-                            : "Approve SOAP note & unlock prescription"
-                        }
-                        className="inline-flex items-center gap-2 px-4 py-2 bg-emerald-600 text-white rounded-xl font-semibold text-xs hover:bg-emerald-700 transition-colors shadow-sm disabled:opacity-40 disabled:cursor-not-allowed"
-                      >
-                        {approveMutation.isPending ? (
-                          <Loader2 className="w-4 h-4 animate-spin" />
-                        ) : (
-                          <CheckCircle2 className="w-4 h-4" />
-                        )}
-                        Approve & Sign Off
-                      </button>
-                    )}
-                  </div>
-                )}
+            {isEditing && (
+              <div className="flex items-center gap-1.5">
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => setIsEditing(false)}
+                  className="text-xs"
+                >
+                  <X className="w-3.5 h-3.5 mr-1" />
+                  Cancel
+                </Button>
+                <Button
+                  size="sm"
+                  onClick={handleSave}
+                  isLoading={updateMutation.isPending}
+                  className="text-xs"
+                >
+                  <Save className="w-3.5 h-3.5 mr-1" />
+                  Save Draft
+                </Button>
+              </div>
+            )}
 
-                {!isEditing &&
-                  consultation.status === "COMPLETE" &&
-                  (prescription?.url ? (
-                    <div className="flex items-center gap-2">
-                      <a
-                        href={prescription.url}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        className="inline-flex items-center gap-2 px-3.5 py-2 bg-teal-50 text-teal-700 rounded-xl font-semibold text-xs hover:bg-teal-100 transition-colors border border-teal-200"
-                      >
-                        <CheckCircle2 className="w-3.5 h-3.5" />
-                        View Prescription
-                      </a>
-                      <button
-                        onClick={handleGeneratePrescription}
-                        disabled={generateMutation.isPending}
-                        className="inline-flex items-center gap-2 px-3.5 py-2 bg-white text-slate-700 rounded-xl font-semibold text-xs hover:bg-slate-50 transition-colors border border-slate-200 disabled:opacity-50"
-                        title="Regenerate prescription with latest edits"
-                      >
-                        {generateMutation.isPending ? (
-                          <Loader2 className="w-3.5 h-3.5 animate-spin" />
-                        ) : (
-                          <RefreshCw className="w-3.5 h-3.5" />
-                        )}
-                        Update
-                      </button>
-                      <button
-                        onClick={() => setIsShareModalOpen(true)}
-                        className="inline-flex items-center gap-2 px-3.5 py-2 bg-indigo-50 text-indigo-700 rounded-xl font-semibold text-xs hover:bg-indigo-100 transition-colors border border-indigo-200"
-                      >
-                        <Share2 className="w-3.5 h-3.5" />
-                        Share
-                      </button>
-                    </div>
-                  ) : (
-                    <button
-                      onClick={handleGeneratePrescription}
-                      disabled={generateMutation.isPending}
-                      className="inline-flex items-center gap-2 px-4 py-2 bg-teal-600 text-white rounded-xl font-semibold text-xs hover:bg-teal-700 transition-colors disabled:opacity-50"
-                    >
-                      {generateMutation.isPending ? (
-                        <Loader2 className="w-4 h-4 animate-spin" />
-                      ) : (
-                        <FileDown className="w-4 h-4" />
-                      )}
-                      Generate Prescription
-                    </button>
-                  ))}
-              </>
+            {consultation.status === "COMPLETE" && !prescription?.url && (
+              <Button
+                size="sm"
+                onClick={handleGeneratePrescription}
+                isLoading={generateMutation.isPending}
+                className="text-xs"
+              >
+                <FileDown className="w-3.5 h-3.5 mr-1" />
+                Generate Prescription
+              </Button>
+            )}
+
+            {consultation.status === "COMPLETE" && prescription?.url && (
+              <div className="flex items-center gap-1.5">
+                <a
+                  href={prescription.url}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="inline-flex items-center gap-1 px-3 py-1.5 rounded-[var(--radius-sm)] border border-primary/20 bg-primary/10 text-primary hover:bg-primary/15 text-xs font-semibold transition-colors"
+                >
+                  <FileDown className="w-3.5 h-3.5" />
+                  View PDF
+                </a>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => setIsShareModalOpen(true)}
+                  className="text-xs"
+                >
+                  <Share2 className="w-3.5 h-3.5 mr-1" />
+                  Share Rx
+                </Button>
+              </div>
             )}
           </div>
         </div>
-      </header>
 
-      {/* Main Split-Screen Reviewer */}
-      <main className="mx-auto max-w-7xl px-6 py-8">
-        <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 items-start">
-          {/* Left Pane (5 cols): Audio Player + Raw Transcript + Clinical Signals */}
-          <div className="lg:col-span-5 space-y-6 lg:sticky lg:top-24">
-            {/* Audio Recording & Waveform Card */}
-            <div className="bg-white border border-slate-200 rounded-3xl p-6 shadow-sm space-y-4">
+        {/* Split-Screen Workspace */}
+        <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
+          {/* Left Pane (40%, 5 cols): Audio Player + Verbatim Transcript + Diagnoses */}
+          <div className="lg:col-span-5 space-y-5 lg:sticky lg:top-20">
+            {/* Audio Recording & Waveform */}
+            <div className="bg-card border border-border rounded-[var(--radius-md)] p-4 shadow-xs space-y-3">
               <div className="flex items-center justify-between">
-                <h2 className="text-sm font-bold text-slate-900 flex items-center gap-2">
-                  <FileAudio className="w-4 h-4 text-teal-600" />
+                <h2 className="text-xs font-bold text-foreground flex items-center gap-2">
+                  <FileAudio className="w-4 h-4 text-primary" />
                   Clinical Audio Recording
                 </h2>
                 {consultation.duration_seconds && (
-                  <span className="text-xs font-mono text-slate-500">
+                  <span className="text-[11px] font-mono text-muted-foreground">
                     {Math.floor(consultation.duration_seconds / 60)}m{" "}
                     {consultation.duration_seconds % 60}s
                   </span>
@@ -329,40 +315,46 @@ export default function ConsultationReviewPage() {
               {audioData?.url ? (
                 <ClinicalAudioPlayer audioUrl={audioData.url} />
               ) : (
-                <div className="p-4 rounded-2xl bg-slate-50 border border-slate-200 text-xs text-slate-500 text-center">
-                  Audio playback URL not generated or expired.
+                <div className="p-3 rounded-[var(--radius-sm)] bg-muted/40 border border-border text-xs text-muted-foreground font-mono text-center">
+                  Audio recording not available for this encounter.
                 </div>
               )}
             </div>
 
-            {/* Verbatim Transcript */}
-            <div className="bg-white border border-slate-200 rounded-3xl p-6 shadow-sm space-y-3">
+            {/* Verbatim Audio Transcript */}
+            <div className="bg-card border border-border rounded-[var(--radius-md)] p-4 shadow-xs space-y-2.5">
               <div className="flex items-center justify-between">
-                <h3 className="text-sm font-bold text-slate-900">
+                <h3 className="text-xs font-bold text-foreground flex items-center gap-1.5">
+                  <FileText className="w-3.5 h-3.5 text-muted-foreground" />
                   Verbatim Audio Transcript
                 </h3>
-                <span className="text-[11px] font-semibold text-slate-400 uppercase tracking-wider">
-                  Deepgram Nova-2
+                <span className="text-[10px] font-mono text-muted-foreground uppercase tracking-wider">
+                  Nova-2 ASR
                 </span>
               </div>
-              <div className="max-h-[420px] overflow-y-auto p-4 rounded-2xl bg-slate-50/70 border border-slate-100 text-xs text-slate-700 leading-relaxed whitespace-pre-wrap font-sans">
+              <div
+                className="max-h-[360px] overflow-y-auto p-3 rounded-[var(--radius-sm)] bg-muted/20 border border-border/60 text-xs text-foreground/90 leading-relaxed whitespace-pre-wrap font-sans"
+                tabIndex={0}
+                aria-label="Encounter audio transcript"
+              >
                 {soap_note?.raw_transcript || (
-                  <span className="italic text-slate-400">
+                  <span className="italic font-mono text-muted-foreground">
                     No transcript available for this encounter.
                   </span>
                 )}
               </div>
             </div>
 
-            {/* Extracted Diagnoses */}
-            <div className="bg-white border border-slate-200 rounded-3xl p-6 shadow-sm">
-              <div className="flex items-center justify-between mb-4">
-                <h2 className="text-sm font-bold text-slate-900 flex items-center gap-2">
-                  <Stethoscope className="w-4 h-4 text-indigo-500" />
-                  Diagnoses & ICD Codes
+            {/* Extracted Diagnoses & ICD-10 */}
+            <div className="bg-card border border-border rounded-[var(--radius-md)] p-4 shadow-xs space-y-3">
+              <div className="flex items-center justify-between">
+                <h2 className="text-xs font-bold text-foreground flex items-center gap-2">
+                  <Stethoscope className="w-3.5 h-3.5 text-primary" />
+                  Diagnoses & ICD-10 Codes
                 </h2>
                 {isEditing && (
                   <button
+                    type="button"
                     onClick={() => {
                       if (!editData) return;
                       setEditData({
@@ -373,7 +365,8 @@ export default function ConsultationReviewPage() {
                         ],
                       });
                     }}
-                    className="p-1.5 bg-indigo-50 text-indigo-600 hover:bg-indigo-100 rounded-lg transition-colors"
+                    className="p-1 rounded-[var(--radius-xs)] border border-border bg-muted/60 hover:bg-muted text-xs text-foreground transition-colors"
+                    title="Add Diagnosis"
                   >
                     <Plus className="w-3.5 h-3.5" />
                   </button>
@@ -382,43 +375,43 @@ export default function ConsultationReviewPage() {
 
               {!isEditing ? (
                 diagnoses && diagnoses.length > 0 ? (
-                  <ul className="space-y-2.5">
+                  <div className="space-y-2">
                     {diagnoses.map((d: Diagnosis) => (
-                      <li
+                      <div
                         key={d.id}
-                        className="p-3 bg-indigo-50/40 rounded-xl border border-indigo-100/60"
+                        className="p-2.5 rounded-[var(--radius-sm)] border border-border/80 bg-muted/20 flex items-start justify-between gap-2"
                       >
-                        <div className="flex items-center gap-2 mb-1">
-                          <span className="px-2 py-0.5 bg-indigo-100 text-indigo-700 rounded text-[11px] font-bold font-mono">
-                            {d.icd_code || "N/A"}
-                          </span>
-                        </div>
-                        <p className="text-xs text-slate-800 font-medium">
+                        <p className="text-xs text-foreground font-medium">
                           {d.description}
                         </p>
-                      </li>
+                        <span className="px-1.5 py-0.5 rounded-[var(--radius-xs)] bg-primary/10 text-primary border border-primary/20 text-[10px] font-mono font-bold shrink-0">
+                          {d.icd_code || "ICD-10"}
+                        </span>
+                      </div>
                     ))}
-                  </ul>
+                  </div>
                 ) : (
-                  <p className="text-xs text-slate-400 italic">
+                  <p className="text-xs text-muted-foreground italic font-mono">
                     No diagnoses extracted.
                   </p>
                 )
               ) : (
-                <ul className="space-y-3">
+                <div className="space-y-2.5">
                   {editData?.diagnoses?.map((d: EditDiag, index: number) => (
-                    <li
+                    <div
                       key={index}
-                      className="p-3 bg-slate-50 rounded-xl border border-slate-200 relative group"
+                      className="p-2.5 rounded-[var(--radius-sm)] border border-border bg-background relative space-y-1.5"
                     >
                       <button
+                        type="button"
                         onClick={() => {
                           if (!editData || !editData.diagnoses) return;
                           const newDiags = [...editData.diagnoses];
                           newDiags.splice(index, 1);
                           setEditData({ ...editData, diagnoses: newDiags });
                         }}
-                        className="absolute top-2 right-2 p-1 text-slate-400 hover:text-red-500 rounded hover:bg-red-50"
+                        className="absolute top-2 right-2 p-1 text-muted-foreground hover:text-destructive transition-colors"
+                        title="Remove Diagnosis"
                       >
                         <Trash2 className="w-3 h-3" />
                       </button>
@@ -434,10 +427,10 @@ export default function ConsultationReviewPage() {
                           };
                           setEditData({ ...editData, diagnoses: newDiags });
                         }}
-                        className="w-full mb-2 p-1.5 text-xs font-mono bg-white border border-slate-200 rounded"
+                        className="w-36 h-7 px-2 text-xs font-mono rounded-[var(--radius-xs)] border border-input bg-card text-foreground focus:outline-none focus:ring-1 focus:ring-ring"
                       />
                       <input
-                        placeholder="Description"
+                        placeholder="Condition description"
                         value={d.description || ""}
                         onChange={(e) => {
                           if (!editData || !editData.diagnoses) return;
@@ -448,25 +441,30 @@ export default function ConsultationReviewPage() {
                           };
                           setEditData({ ...editData, diagnoses: newDiags });
                         }}
-                        className="w-full p-1.5 text-xs bg-white border border-slate-200 rounded"
+                        className="w-full h-7 px-2 text-xs rounded-[var(--radius-xs)] border border-input bg-card text-foreground focus:outline-none focus:ring-1 focus:ring-ring"
                       />
-                    </li>
+                    </div>
                   ))}
-                </ul>
+                </div>
               )}
             </div>
           </div>
 
-          {/* Right Pane (7 cols): Drug Interaction Alert + SOAP Note + Medications */}
-          <div className="lg:col-span-7 space-y-6">
-            {/* Pharmacological Safety Alerts Banner */}
-            <DrugInteractionBanner
-              interactions={interactions || []}
-              onAcknowledgeAll={setIsCriticalAcked}
-            />
+          {/* Right Pane (60%, 7 cols): Pharmacological Safety + SOAP Editor + Medications */}
+          <div className="lg:col-span-7 space-y-5">
+            {/* Pharmacological Safety Alerts Card */}
+            <div className="space-y-2">
+              <h2 className="text-xs font-bold text-foreground uppercase tracking-wider font-mono">
+                Pharmacological Safety Guardrails
+              </h2>
+              <DrugInteractionBanner
+                interactions={interactions || []}
+                onAcknowledgeAll={setIsCriticalAcked}
+              />
+            </div>
 
-            {/* Editable SOAP Clinical Note */}
-            <div className="bg-white border border-slate-200 rounded-3xl p-6 shadow-sm">
+            {/* SOAP Clinical Progress Note */}
+            <div className="bg-card border border-border rounded-[var(--radius-md)] p-4 sm:p-5 shadow-xs">
               <SoapNoteEditor
                 soapNote={soap_note}
                 isEditing={isEditing}
@@ -502,15 +500,16 @@ export default function ConsultationReviewPage() {
               />
             </div>
 
-            {/* Extracted Prescribed Medications */}
-            <div className="bg-white border border-slate-200 rounded-3xl p-6 shadow-sm">
-              <div className="flex items-center justify-between mb-4">
-                <h2 className="text-sm font-bold text-slate-900 flex items-center gap-2">
-                  <Pill className="w-4 h-4 text-rose-500" />
-                  Prescribed Regimen & Dosing
+            {/* Prescribed Regimen & Medications */}
+            <div className="bg-card border border-border rounded-[var(--radius-md)] p-4 sm:p-5 shadow-xs space-y-3">
+              <div className="flex items-center justify-between">
+                <h2 className="text-xs font-bold text-foreground flex items-center gap-2">
+                  <Pill className="w-3.5 h-3.5 text-primary" />
+                  Prescribed Regimen & Formulations
                 </h2>
                 {isEditing && (
                   <button
+                    type="button"
                     onClick={() => {
                       if (!editData) return;
                       setEditData({
@@ -521,7 +520,8 @@ export default function ConsultationReviewPage() {
                         ],
                       });
                     }}
-                    className="p-1.5 bg-rose-50 text-rose-600 hover:bg-rose-100 rounded-lg transition-colors"
+                    className="p-1 rounded-[var(--radius-xs)] border border-border bg-muted/60 hover:bg-muted text-xs text-foreground transition-colors"
+                    title="Add Medication"
                   >
                     <Plus className="w-3.5 h-3.5" />
                   </button>
@@ -530,16 +530,16 @@ export default function ConsultationReviewPage() {
 
               {!isEditing ? (
                 medications && medications.length > 0 ? (
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
                     {medications.map((m: Medication) => (
                       <div
                         key={m.id}
-                        className="p-3.5 bg-rose-50/40 rounded-xl border border-rose-100/60"
+                        className="p-3 rounded-[var(--radius-sm)] border border-border/80 bg-muted/20 space-y-1"
                       >
-                        <p className="text-xs font-bold text-slate-900 mb-1">
+                        <p className="text-xs font-bold text-foreground">
                           {m.name}
                         </p>
-                        <div className="flex flex-wrap gap-x-2 gap-y-0.5 text-[11px] text-slate-600">
+                        <div className="flex flex-wrap gap-x-2 text-[11px] font-mono text-muted-foreground">
                           {m.dosage && <span>{m.dosage}</span>}
                           {m.frequency && <span>• {m.frequency}</span>}
                           {m.duration && <span>• {m.duration}</span>}
@@ -548,7 +548,7 @@ export default function ConsultationReviewPage() {
                     ))}
                   </div>
                 ) : (
-                  <p className="text-xs text-slate-400 italic">
+                  <p className="text-xs text-muted-foreground italic font-mono">
                     No medications prescribed.
                   </p>
                 )
@@ -557,21 +557,23 @@ export default function ConsultationReviewPage() {
                   {editData?.medications?.map((m: EditMed, index: number) => (
                     <div
                       key={index}
-                      className="p-3.5 bg-slate-50 rounded-xl border border-slate-200 relative group"
+                      className="p-3 rounded-[var(--radius-sm)] border border-border bg-background relative space-y-2"
                     >
                       <button
+                        type="button"
                         onClick={() => {
                           if (!editData || !editData.medications) return;
                           const newMeds = [...editData.medications];
                           newMeds.splice(index, 1);
                           setEditData({ ...editData, medications: newMeds });
                         }}
-                        className="absolute top-2 right-2 p-1 text-slate-400 hover:text-red-500 rounded hover:bg-red-50"
+                        className="absolute top-2 right-2 p-1 text-muted-foreground hover:text-destructive transition-colors"
+                        title="Remove Medication"
                       >
                         <Trash2 className="w-3 h-3" />
                       </button>
                       <input
-                        placeholder="Medication Name"
+                        placeholder="Medication Name (e.g. Amoxicillin)"
                         value={m.name || ""}
                         onChange={(e) => {
                           if (!editData || !editData.medications) return;
@@ -582,11 +584,11 @@ export default function ConsultationReviewPage() {
                           };
                           setEditData({ ...editData, medications: newMeds });
                         }}
-                        className="w-full mb-2 p-1.5 pr-8 text-xs font-bold bg-white border border-slate-200 rounded"
+                        className="w-full h-7 px-2 text-xs font-bold rounded-[var(--radius-xs)] border border-input bg-card text-foreground focus:outline-none focus:ring-1 focus:ring-ring"
                       />
                       <div className="grid grid-cols-3 gap-2">
                         <input
-                          placeholder="Dosage"
+                          placeholder="Dosage (500mg)"
                           value={m.dosage || ""}
                           onChange={(e) => {
                             if (!editData || !editData.medications) return;
@@ -597,10 +599,10 @@ export default function ConsultationReviewPage() {
                             };
                             setEditData({ ...editData, medications: newMeds });
                           }}
-                          className="w-full p-1.5 text-xs bg-white border border-slate-200 rounded"
+                          className="h-7 px-2 text-xs font-mono rounded-[var(--radius-xs)] border border-input bg-card text-foreground focus:outline-none focus:ring-1 focus:ring-ring"
                         />
                         <input
-                          placeholder="Frequency"
+                          placeholder="Frequency (TID)"
                           value={m.frequency || ""}
                           onChange={(e) => {
                             if (!editData || !editData.medications) return;
@@ -611,10 +613,10 @@ export default function ConsultationReviewPage() {
                             };
                             setEditData({ ...editData, medications: newMeds });
                           }}
-                          className="w-full p-1.5 text-xs bg-white border border-slate-200 rounded"
+                          className="h-7 px-2 text-xs font-mono rounded-[var(--radius-xs)] border border-input bg-card text-foreground focus:outline-none focus:ring-1 focus:ring-ring"
                         />
                         <input
-                          placeholder="Duration"
+                          placeholder="Duration (7 days)"
                           value={m.duration || ""}
                           onChange={(e) => {
                             if (!editData || !editData.medications) return;
@@ -625,7 +627,7 @@ export default function ConsultationReviewPage() {
                             };
                             setEditData({ ...editData, medications: newMeds });
                           }}
-                          className="w-full p-1.5 text-xs bg-white border border-slate-200 rounded"
+                          className="h-7 px-2 text-xs font-mono rounded-[var(--radius-xs)] border border-input bg-card text-foreground focus:outline-none focus:ring-1 focus:ring-ring"
                         />
                       </div>
                     </div>
@@ -635,64 +637,83 @@ export default function ConsultationReviewPage() {
             </div>
           </div>
         </div>
-      </main>
+      </div>
+
+      {/* Sticky Docked Review Status Bar */}
+      <ReviewStatusBar
+        totalItems={totalReviewItems}
+        verifiedItems={verifiedReviewItems}
+        criticalAlertCount={criticalAlertCount}
+        criticalAlertsAcknowledged={isCriticalAcked}
+        canApprove={canApprove}
+        isApproving={approveMutation.isPending}
+        onApprove={() => approveMutation.mutate()}
+        onSaveDraft={handleSave}
+      />
 
       {/* Share Prescription Modal */}
       {isShareModalOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/50 backdrop-blur-sm">
-          <div className="bg-white rounded-2xl shadow-xl w-full max-w-md overflow-hidden animate-in fade-in zoom-in duration-200">
-            <div className="flex items-center justify-between p-4 border-b border-slate-100">
-              <h3 className="font-bold text-slate-900">Share Prescription</h3>
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-background/80 backdrop-blur-xs animate-in fade-in duration-150">
+          <div className="bg-card border border-border rounded-[var(--radius-lg)] shadow-xl w-full max-w-md p-5 sm:p-6 space-y-4 animate-in zoom-in-95 duration-150">
+            <div className="flex items-center justify-between border-b border-border/60 pb-3">
+              <h3 className="font-bold text-sm text-foreground">
+                Share Encrypted Prescription
+              </h3>
               <button
+                type="button"
                 onClick={() => setIsShareModalOpen(false)}
-                className="p-1 text-slate-400 hover:text-slate-600 rounded-lg hover:bg-slate-100 transition-colors"
+                className="p-1 text-muted-foreground hover:text-foreground rounded-[var(--radius-xs)] hover:bg-muted transition-colors"
+                aria-label="Close share dialog"
               >
-                <X className="w-5 h-5" />
+                <X className="w-4 h-4" />
               </button>
             </div>
-            <div className="p-6">
-              <p className="text-xs text-slate-600 mb-4 font-medium">
-                Copy unique, tamper-proof prescription link:
-              </p>
-              <div className="flex items-center gap-2">
-                <div
-                  className="flex-1 px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs text-slate-600 font-mono truncate select-all"
-                  title={
-                    prescription?.share_url ||
-                    `/consultations/public/${id}/prescription`
-                  }
-                >
-                  {prescription?.share_url || `Generating secure link...`}
-                </div>
-                <button
-                  onClick={() => {
-                    const linkToCopy =
-                      prescription?.share_url ||
-                      `${window.location.origin}/consultations/public/${id}/prescription`;
-                    navigator.clipboard.writeText(linkToCopy);
-                    toast.success("Secure share link copied to clipboard!");
-                    setIsCopied(true);
-                    setTimeout(() => setIsCopied(false), 2000);
-                  }}
-                  className={`px-4 py-2 text-white rounded-xl text-xs font-semibold transition-colors shrink-0 flex items-center gap-2 ${
-                    isCopied
-                      ? "bg-emerald-600 hover:bg-emerald-700"
-                      : "bg-slate-900 hover:bg-slate-800"
-                  }`}
-                >
-                  {isCopied ? (
-                    <>
-                      <Check className="w-4 h-4" />
-                      Copied!
-                    </>
-                  ) : (
-                    <>
-                      <Copy className="w-4 h-4" />
-                      Copy
-                    </>
-                  )}
-                </button>
+
+            <p className="text-xs text-muted-foreground font-mono">
+              Signed HMAC-SHA256 link valid for 7 days. Grants read-only patient access:
+            </p>
+
+            <div className="flex items-center gap-2">
+              <div
+                className="flex-1 h-8 px-2.5 rounded-[var(--radius-sm)] border border-input bg-muted/40 text-xs text-foreground font-mono truncate flex items-center select-all"
+                title={prescription?.share_url || ""}
+              >
+                {prescription?.share_url || `Generating signed token...`}
               </div>
+              <Button
+                size="sm"
+                onClick={() => {
+                  const linkToCopy =
+                    prescription?.share_url ||
+                    `${window.location.origin}/consultations/public/${id}/prescription`;
+                  navigator.clipboard.writeText(linkToCopy);
+                  toast.success("Prescription link copied to clipboard.");
+                  setIsCopied(true);
+                  setTimeout(() => setIsCopied(false), 2000);
+                }}
+              >
+                {isCopied ? (
+                  <>
+                    <Check className="w-3.5 h-3.5 mr-1" />
+                    Copied
+                  </>
+                ) : (
+                  <>
+                    <Copy className="w-3.5 h-3.5 mr-1" />
+                    Copy Link
+                  </>
+                )}
+              </Button>
+            </div>
+
+            <div className="pt-2 flex justify-end">
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => setIsShareModalOpen(false)}
+              >
+                Done
+              </Button>
             </div>
           </div>
         </div>
