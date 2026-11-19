@@ -350,10 +350,26 @@ Every response includes:
 - **Connection Closure Reasons**:
   - `1008 Policy Violation`: Missing/invalid token or consultation unowned/not found in database.
 
-### 5.6 Generate Prescription PDF
+### 5.6 Approve & Sign Off Consultation
+- **Endpoint**: `POST /consultations/{consultation_id}/approve`
+- **Auth**: Required (`get_current_doctor`)
+- **Description**: Attending physician reviews and signs off on the consultation notes, diagnoses, and medications. Transitions status from `AWAITING_REVIEW` to `COMPLETED`. Required before prescription generation is unlocked.
+- **Response `200 OK`** (`ConsultationResponse`):
+```json
+{
+  "id": "1b01c3c2-d352-4cf4-91bc-d18386f91cb1",
+  "status": "COMPLETED",
+  "updated_at": "2026-11-19T10:16:30Z"
+}
+```
+- **Errors**:
+  - `400 Bad Request`: `{"detail": "Consultation must be in AWAITING_REVIEW status to approve (current: PENDING)"}`
+  - `404 Not Found`: `{"detail": "Consultation not found"}`
+
+### 5.7 Generate Prescription PDF
 - **Endpoint**: `POST /consultations/{consultation_id}/prescription`
 - **Auth**: Required (`get_current_doctor`)
-- **Description**: Compiles prescription HTML using WeasyPrint, uploads to S3, returns pre-signed URL, and triggers async email to patient if email exists.
+- **Description**: Compiles prescription HTML using WeasyPrint, uploads to S3, returns pre-signed URL, and triggers async email to patient if email exists. Requires consultation status to be `COMPLETED`.
 - **Response `200 OK`**:
 ```json
 {
@@ -361,10 +377,10 @@ Every response includes:
 }
 ```
 - **Errors**:
-  - `400 Bad Request`: `{"message": "Consultation is not complete yet."}`
+  - `400 Bad Request`: `{"detail": "Consultation must be approved and completed by doctor before generating prescription (current status: AWAITING_REVIEW)."}`
   - `404 Not Found`: Consultation not found.
 
-### 5.7 Get Existing Prescription URL
+### 5.8 Get Existing Prescription URL
 - **Endpoint**: `GET /consultations/{consultation_id}/prescription`
 - **Auth**: Required (`get_current_doctor`)
 - **Response `200 OK`**:
@@ -376,7 +392,7 @@ Every response includes:
 - **Errors**:
   - `404 Not Found`: `{"message": "Prescription not generated yet."}`
 
-### 5.8 Public Prescription Access
+### 5.9 Public Prescription Access
 - **Endpoint**: `GET /consultations/public/{consultation_id}/prescription`
 - **Auth**: HMAC-SHA256 signed access token via `?token=<signed_token>` (7-day validity).
 - **Rate Limit**: 10 requests / minute per IP.

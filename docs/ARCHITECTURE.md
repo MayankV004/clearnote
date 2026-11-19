@@ -36,7 +36,7 @@ flowchart TB
 
     subgraph ExternalAI ["External AI & Integration Services"]
         DG["Deepgram Nova-3 Medical STT<br/>WebSocket Audio Streaming<br/><code>backend/app/services/deepgram_service.py</code>"]
-        GROQ_EXTRACT["Groq LLM (llama-3.1-8b-instant)<br/>SOAP Extraction<br/><code>backend/app/services/llm_service.py</code>"]
+        GROQ_EXTRACT["Groq LLM (llama-3.3-70b-versatile, fallback: 8b)<br/>SOAP Extraction<br/><code>backend/app/services/llm_service.py</code>"]
         GROQ_RAG["Groq LLM (llama-3.3-70b-versatile)<br/>Interaction Evaluation<br/><code>backend/app/services/rag_service.py</code>"]
         FE_EMBED["FastEmbed (Local CPU)<br/>nomic-embed-text-v1.5 (768-dim)<br/><code>backend/app/services/rag_service.py</code>"]
         NOTIF["SendGrid & Twilio<br/>Email & SMS Delivery<br/><code>backend/app/services/notification_service.py</code>"]
@@ -74,7 +74,7 @@ flowchart TB
 | **Object Storage** | `backend/app/services/s3_service.py:27` | AWS S3 via Boto3 (aioboto3 compatible) | Binary audio recordings (`clearnote-audio-s3`) and PDF prescriptions (`clearnote-pdfs-s3`) |
 | **Cache Layer** | `backend/app/services/cache_service.py:18` | Upstash Redis via REST (`upstash-redis`) | Cache-aside layer for doctor profiles, patient rosters, consultation views |
 | **Speech-to-Text (STT)** | `backend/app/services/deepgram_service.py:24` | Deepgram SDK (`nova-3-medical`) | Live WebSocket streaming and prerecorded consultation audio transcription |
-| **Clinical Extraction LLM** | `backend/app/services/llm_service.py:16` | Groq API (`llama-3.1-8b-instant`) | Structured JSON extraction of SOAP notes, medications, ICD-10 codes |
+| **Clinical Extraction LLM** | `backend/app/services/llm_service.py:16` | Groq API (`llama-3.3-70b-versatile`, fallback `llama-3.1-8b-instant`) | Structured JSON extraction of SOAP notes, medications, ICD-10 codes |
 | **Interaction RAG LLM** | `backend/app/services/rag_service.py:168` | Groq API (`llama-3.3-70b-versatile`) | Evaluates drug-drug and drug-allergy interactions against retrieved chunks |
 | **Local Embedding Engine** | `backend/app/services/rag_service.py:26` | FastEmbed (`nomic-ai/nomic-embed-text-v1.5`)| Runs dense 768-dimensional text embeddings locally on host CPU (~44ms) |
 | **Prescription Engine** | `backend/app/services/pdf_service.py:17` | WeasyPrint 64.0 + Jinja2 | Renders PDF prescriptions from HTML templates (`prescription_template.html`) |
@@ -171,8 +171,11 @@ sequenceDiagram
     end
     
     BG->>DB: INSERT soap_notes, medications, diagnoses, interactions
-    BG->>DB: UPDATE consultations SET status = 'COMPLETED'
+    BG->>DB: UPDATE consultations SET status = 'AWAITING_REVIEW'
     BG->>DB: Invalidate consultation cache in Redis
+    Clinician->>API: POST /consultations/{id}/approve (Signs off on clinical notes)
+    API->>DB: UPDATE consultations SET status = 'COMPLETED'
+    Clinician->>API: POST /consultations/{id}/prescription (PDF generated)
 ```
 
 ---
@@ -311,14 +314,14 @@ ClearNote implements a hybrid clinical RAG pipeline combining local dense embedd
 ```mermaid
 flowchart LR
     subgraph Ingestion ["1. Guideline Ingestion (backend/app/services/rag_service.py:31)"]
-        DOC["Clinical PDF / Text Guidelines"] --> CHUNKER["CharacterTextSplitter<br/>(chunk_size=1000, overlap=200)"]
+        DOC["Clinical PDF / Text Guidelines"] --> CHUNKER["RecursiveCharacterTextSplitter<br/>(clinical delimiters, chunk_size=800, overlap=150)"]
         CHUNKER --> EMBED["FastEmbed nomic-embed-text-v1.5<br/>Local CPU (768 Dimensions)"]
         EMBED --> PGV[("PostgreSQL pgvector<br/>guideline_chunks table")]
     end
 
     subgraph ConsultationRun ["2. Real-Time Consultation Pipeline (backend/app/services/consultation_service.py:270)"]
         TRANSCRIPT["Doctor-Patient Raw Transcript"] --> PROMPT_SOAP["SOAP Prompt Template<br/><code>soap_extraction.py:8</code>"]
-        PROMPT_SOAP --> GROQ_SOAP["Groq API: llama-3.1-8b-instant<br/><code>response_format={type: json_object}</code>"]
+        PROMPT_SOAP --> GROQ_SOAP["Groq API: llama-3.3-70b-versatile<br/>(fallback: llama-3.1-8b-instant)<br/><code>response_format={type: json_object}</code>"]
         GROQ_SOAP --> PARSER["Clinical JSON Schema Validation<br/>(SOAP, Meds, ICD-10)"]
     end
 
