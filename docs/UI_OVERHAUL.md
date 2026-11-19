@@ -63,9 +63,11 @@ graph TD
 
 | Route ID | Route Path | Name / Scope | Status | Notes |
 | :--- | :--- | :--- | :--- | :--- |
-| **SYS-01** | `/dev/components` | Foundation & Component Gallery | **Shipped** | Tokens, base primitives, clinical AI widgets, motion |
+| **SYS-01** | `/dev/components` | Foundation & Component Gallery | **Removed** | Decommissioned per user request; production design tokens & clinical components live in `src/components/ui` & `src/components/clinical` |
 | **RT-01** | `/sign-in` & `/sign-up` | Clinical Authentication & SSO | Shipped | Phase B Ticket 1 |
 | **RT-02** | `/dashboard` | Clinical Hub & Encounters Roster | Shipped | Phase B Ticket 2 |
+| **RT-02B** | `/dashboard/patients` | All Patients Directory & Medical Records | **Shipped** | Searchable directory, HIPAA consent filter, dense mode, quick-register modal, responsive cards |
+| **RT-02C** | `/dashboard/consultations` | Consultations & SOAP Records | **Shipped** | Filterable clinical encounters, patient filter, status tabs, direct review & sign links |
 | **RT-03** | `/dashboard/consultations/[id]` | Split-Screen Consultation Reviewer | Shipped | Phase B Ticket 3 |
 | **RT-04** | `/dashboard/patients/[id]` | Patient Profile & History | Shipped | Phase B Ticket 4 |
 | **RT-05** | `/onboarding` | Doctor Profile & Signature Wizard | Shipped | Phase B Ticket 5 |

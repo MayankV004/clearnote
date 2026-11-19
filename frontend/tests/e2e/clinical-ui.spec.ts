@@ -28,18 +28,20 @@ test.describe('ClearNote Clinical Design System & UI Overhaul', () => {
     await expect(page.locator('text=21 CFR Part 11 Compliant').first()).toBeVisible();
   });
 
-  test('Living Component Gallery renders all clinical design primitives', async ({ page }) => {
-    await page.goto('/dev/components');
-    await expect(page.locator('h1')).toContainText('ClearNote Design System Gallery');
+  test('Clinical Sidebar renders doctor navigation links and quick actions', async ({ page }) => {
+    await page.goto('/dev/dashboard');
 
-    // Check base buttons & inputs
-    await expect(page.locator('text=1. Buttons & Interactive Triggers')).toBeVisible();
-    await expect(page.locator('text=4. Status Banners & Clinical Badges')).toBeVisible();
+    // Sidebar Brand and BAA status
+    await expect(page.locator('text=ClearNote').first()).toBeVisible();
+    await expect(page.locator('text=HIPAA BAA Protected').first()).toBeVisible();
 
-    // Check Clinical AI Trust suite
-    await expect(page.locator('text=5. Clinical AI Trust & Governance Widgets')).toBeVisible();
-    await expect(page.locator('text=AI Draft').first()).toBeVisible();
-    await expect(page.locator('text=Clinician Verified').first()).toBeVisible();
+    // Doctor management navigation
+    await expect(page.locator('text=All Patients').first()).toBeVisible();
+    await expect(page.locator('text=SOAPs & Consultations').first()).toBeVisible();
+    await expect(page.locator('text=Profile & Signature').first()).toBeVisible();
+
+    // Quick action buttons
+    await expect(page.locator('button:has-text("Start Recording (R)")').first()).toBeVisible();
   });
 
   test('Clinical Dashboard Encounter Roster renders table and dense mode toggle', async ({ page }) => {

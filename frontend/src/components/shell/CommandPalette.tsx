@@ -8,9 +8,10 @@ import {
   Settings,
   Stethoscope,
   UserPlus,
+  Users,
+  FileText,
   Moon,
   Sun,
-  Code2,
 } from "lucide-react";
 import { useTheme } from "next-themes";
 import { Dialog } from "@/components/ui/Dialog";
@@ -50,6 +51,28 @@ export function CommandPalette({
       shortcut: "G D",
       perform: () => {
         router.push("/dashboard");
+        onClose();
+      },
+    },
+    {
+      id: "nav-patients",
+      label: "View All Patients Directory",
+      category: "Navigation",
+      icon: Users,
+      shortcut: "G P",
+      perform: () => {
+        router.push("/dashboard/patients");
+        onClose();
+      },
+    },
+    {
+      id: "nav-soaps",
+      label: "View Consultations & SOAPs",
+      category: "Navigation",
+      icon: FileText,
+      shortcut: "G C",
+      perform: () => {
+        router.push("/dashboard/consultations");
         onClose();
       },
     },
@@ -102,17 +125,6 @@ export function CommandPalette({
       shortcut: "T",
       perform: () => {
         setTheme(theme === "dark" ? "light" : "dark");
-        onClose();
-      },
-    },
-    {
-      id: "dev-gallery",
-      label: "Open Design System Component Gallery",
-      category: "System",
-      icon: Code2,
-      shortcut: "G C",
-      perform: () => {
-        router.push("/dev/components");
         onClose();
       },
     },

@@ -26,7 +26,7 @@ export interface TableProps<T> {
   className?: string;
 }
 
-export function Table<T extends Record<string, unknown>>({
+export function Table<T>({
   columns,
   data,
   keyExtractor,
@@ -119,7 +119,7 @@ export function Table<T extends Record<string, unknown>>({
                     >
                       {col.render
                         ? col.render(row)
-                        : String(row[col.key] ?? "—")}
+                        : String((row as Record<string, unknown>)[col.key] ?? "—")}
                     </td>
                   ))}
                 </tr>
@@ -153,7 +153,7 @@ export function Table<T extends Record<string, unknown>>({
                     {col.header}
                   </span>
                   <div className="text-right text-foreground font-medium">
-                    {col.render ? col.render(row) : String(row[col.key] ?? "—")}
+                    {col.render ? col.render(row) : String((row as Record<string, unknown>)[col.key] ?? "—")}
                   </div>
                 </div>
               ))}

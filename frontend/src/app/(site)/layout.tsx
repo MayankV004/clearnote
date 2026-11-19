@@ -1,44 +1,47 @@
 "use client";
 
-import { useEffect } from "react";
-import { useUser, useAuth } from "@clerk/nextjs";
+import React, { useEffect } from "react";
+import { useUser } from "@clerk/nextjs";
 import { useRouter } from "next/navigation";
 import { AppShell } from "@/components/shell/AppShell";
+import { useDoctor } from "@/features/doctor/api/useDoctor";
 
-// ─── Route-agnostic loading skeleton ─────────────────────────────────────────
-//
-// This shows while Clerk initializes (~200-400ms on every page load).
-// Clerk is a client-side auth library — it must run JavaScript and verify
-// the session cookie before it knows who the user is. This skeleton prevents
-// the black or unstyled flash during that window.
-//
+// Route-agnostic loading skeleton while Clerk initializes on cold start
 function AuthLoadingSkeleton() {
   return (
-    <div className="min-h-screen bg-background text-foreground">
-      {/* Top Navbar skeleton matching AppShell dimensions */}
-      <div className="sticky top-0 z-40 border-b border-border bg-card/90 backdrop-blur-md">
-        <div className="mx-auto max-w-7xl px-4 sm:px-6 h-14 flex items-center justify-between">
-          <div className="flex items-center gap-3">
-            <div className="w-7 h-7 rounded-[var(--radius-xs)] bg-muted animate-pulse" />
-            <div className="h-4 w-24 rounded-[var(--radius-xs)] bg-muted animate-pulse" />
-          </div>
-          <div className="flex items-center gap-2.5">
-            <div className="h-8 w-48 rounded-[var(--radius-sm)] bg-muted animate-pulse hidden md:block" />
-            <div className="h-8 w-8 rounded-[var(--radius-sm)] bg-muted animate-pulse" />
-            <div className="h-8 w-24 rounded-[var(--radius-sm)] bg-muted animate-pulse" />
-          </div>
+    <div className="min-h-screen bg-background text-foreground flex">
+      {/* Desktop sidebar placeholder */}
+      <div className="hidden lg:flex w-64 flex-col border-r border-border bg-card/60 p-4 space-y-6">
+        <div className="flex items-center gap-2.5">
+          <div className="w-8 h-8 rounded-[var(--radius-sm)] bg-muted animate-pulse" />
+          <div className="h-4 w-28 rounded-[var(--radius-xs)] bg-muted animate-pulse" />
+        </div>
+        <div className="space-y-2 pt-4">
+          <div className="h-8 w-full rounded-[var(--radius-sm)] bg-muted animate-pulse" />
+          <div className="h-8 w-full rounded-[var(--radius-sm)] bg-muted animate-pulse" />
+          <div className="h-8 w-full rounded-[var(--radius-sm)] bg-muted animate-pulse" />
+        </div>
+      </div>
+      {/* Content skeleton */}
+      <div className="flex-1 p-6 space-y-6">
+        <div className="h-8 w-64 rounded-[var(--radius-sm)] bg-muted animate-pulse" />
+        <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+          <div className="h-24 rounded-[var(--radius-md)] bg-muted/60 animate-pulse" />
+          <div className="h-24 rounded-[var(--radius-md)] bg-muted/60 animate-pulse" />
+          <div className="h-24 rounded-[var(--radius-md)] bg-muted/60 animate-pulse" />
+          <div className="h-24 rounded-[var(--radius-md)] bg-muted/60 animate-pulse" />
         </div>
       </div>
     </div>
   );
 }
 
-// ─── Layout ───────────────────────────────────────────────────────────────────
-
 export default function SiteLayout({ children }: { children: React.ReactNode }) {
   const { user, isLoaded } = useUser();
-  const { getToken } = useAuth();
   const router = useRouter();
+
+  // Use cached doctor profile with 10-minute staleTime instead of redundant raw network calls
+  const { data: doctor, error: doctorError } = useDoctor();
 
   useEffect(() => {
     if (!isLoaded) return;
@@ -48,38 +51,17 @@ export default function SiteLayout({ children }: { children: React.ReactNode }) 
       return;
     }
 
-    const checkOnboarding = async () => {
-      try {
-        const token = await getToken();
-        const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/doctors/me`, {
-          headers: { Authorization: `Bearer ${token}` },
-        });
+    // Check doctor onboarding state from cached query
+    if (doctor && !doctor.is_onboarded) {
+      router.replace("/onboarding");
+    } else if (doctorError && typeof doctorError === "object" && "status" in doctorError && (doctorError as { status: number }).status === 404) {
+      router.replace("/onboarding");
+    }
+  }, [isLoaded, user, doctor, doctorError, router]);
 
-        if (res.status === 401) {
-          router.replace("/sign-in");
-          return;
-        }
-
-        if (res.status === 404) {
-          router.replace("/onboarding");
-          return;
-        }
-
-        if (res.ok) {
-          const doctor = await res.json();
-          if (!doctor.is_onboarded) {
-            router.replace("/onboarding");
-          }
-        }
-      } catch (err) {
-        console.error("Failed to check onboarding status:", err);
-      }
-    };
-
-    checkOnboarding();
-  }, [isLoaded, user, router, getToken]);
-
-  if (!isLoaded || !user) return <AuthLoadingSkeleton />;
+  if (!isLoaded || !user) {
+    return <AuthLoadingSkeleton />;
+  }
 
   return <AppShell>{children}</AppShell>;
 }
