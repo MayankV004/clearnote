@@ -5,6 +5,9 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
+### Phase B: Page Redesigns
+- **Ticket 1: Clinical Authentication & SSO (`/sign-in`, `/sign-up`)**: Overhauled authentication layout into a modern two-column clinical gateway. Replaced Anime.js liquid blobs and gradients with a serene high-contrast structure featuring system security credentials, BAA assurances, cryptographic encryption indicators, and customized Clerk authentication components adhering to ClearNote design tokens. Verified across light and dark modes with WCAG 2.2 AAA text contrast.
+
 ### Phase A: Design System Foundation & Component Gallery
 - **Clinical Design Principles (`docs/DESIGN_PRINCIPLES.md`)**: Formulated the "Quiet Confidence" design doctrine, anti-"AI slop" enforcement matrix (banning purple/pink gradient backgrounds, generic 32px bubble cards, and magic-wand emojis), and strict 2-zone animation policy.
 - **Design Tokens & Theme Foundation (`frontend/src/app/globals.css`)**: Established cool slate neutral scale (`Slate-50` to `Slate-950`) paired with a single clinical teal accent (`#0D9488` / `#14B8A6`) and strict status colors. Verified WCAG 2.2 AA / AAA contrast (>14.8:1 text contrast) across both light and dark themes. Added systematic spacing (4/8px), radii (4/6/8/12px), elevation shadows, z-index scale, and global `prefers-reduced-motion` zero-transform enforcement.
