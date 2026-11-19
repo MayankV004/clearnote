@@ -103,7 +103,7 @@ flowchart TD
 
 ---
 
-### TICKET-04: Secure Public Prescription PDF Endpoint with Signed Tokens
+### [x] TICKET-04: Secure Public Prescription PDF Endpoint with Signed Tokens (COMPLETED)
 - **Priority**: P0 (Security / PHI)
 - **Gap Reference**: `SEC-05`
 - **Scope**: Replace unauthenticated naked UUID lookup on `GET /consultations/public/{id}/prescription` with a cryptographic signed HMAC token with expiration.

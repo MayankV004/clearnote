@@ -663,13 +663,14 @@ export default function ConsultationReviewPage() {
                 Copy unique link
               </p>
               <div className="flex items-center gap-2">
-                <div className="flex-1 px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-sm text-slate-600 font-mono truncate select-all" title={`https://such-upstate-cornmeal.ngrok-free.dev/consultations/public/${id}/prescription`}>
-                  {`https://such-upstate-cornmeal.ngrok-free.dev/consultations/public/${id}/prescription`}
+                <div className="flex-1 px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-sm text-slate-600 font-mono truncate select-all" title={prescription?.share_url || `/consultations/public/${id}/prescription`}>
+                  {prescription?.share_url || `Generating secure link...`}
                 </div>
                 <button
                   onClick={() => {
-                    navigator.clipboard.writeText(`https://such-upstate-cornmeal.ngrok-free.dev/consultations/public/${id}/prescription`);
-                    toast.success("Share link copied to clipboard!");
+                    const linkToCopy = prescription?.share_url || `${window.location.origin}/consultations/public/${id}/prescription`;
+                    navigator.clipboard.writeText(linkToCopy);
+                    toast.success("Secure share link copied to clipboard!");
                     setIsCopied(true);
                     setTimeout(() => setIsCopied(false), 2000);
                   }}

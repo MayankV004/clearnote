@@ -2,13 +2,14 @@
 from typing import List
 from uuid import UUID
 from pydantic import BaseModel
-from fastapi import APIRouter, Depends, WebSocket, WebSocketDisconnect, BackgroundTasks, status, UploadFile, File
+from fastapi import APIRouter, Depends, WebSocket, WebSocketDisconnect, BackgroundTasks, status, UploadFile, File, Query
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.future import select
 from sqlalchemy.orm import selectinload
 
 from app.api.dependencies.auth import get_current_doctor, get_current_doctor_ws
 from fastapi.exceptions import WebSocketException
+from app.core.security import create_prescription_token, verify_prescription_token
 from app.api.dependencies.db import get_db
 from app.core.exceptions import ConsultationNotFoundException, PatientNotOwnedException
 from app.core.logger import logger
@@ -31,12 +32,16 @@ router = APIRouter(prefix="/consultations", tags=["consultations"])
 @router.get("/public/{consultation_id}/prescription", summary="Publicly accessible endpoint for a prescription PDF")
 async def get_public_prescription(
     consultation_id: UUID,
+    token: str = Query(..., description="Signed token required for prescription access"),
     db: AsyncSession = Depends(get_db),
 ):
     """
     Publicly accessible endpoint to get the presigned URL for a prescription PDF.
-    Using consultation_id as the unique token since it's a UUID v4.
+    Requires a valid HMAC-SHA256 signed access token to prevent UUID enumeration.
     """
+    if not verify_prescription_token(consultation_id, token):
+        return JSONResponse(status_code=401, content={"message": "Invalid or expired prescription access token."})
+
     stmt = select(Consultation).where(Consultation.id == consultation_id)
     consultation = await db.scalar(stmt)
     if not consultation:
@@ -215,14 +220,21 @@ async def generate_prescription(
         s3_key = await pdf_service.generate_prescription_pdf(db, str(consultation_id))
         presigned_url = await s3_service.generate_presigned_url(s3_key, bucket_name=settings.PDF_BUCKET_NAME)
         
+        token = create_prescription_token(consultation_id)
+        share_url = f"{settings.FRONTEND_URL}/consultations/public/{consultation_id}/prescription?token={token}"
+
         if consultation.patient and consultation.patient.email:
             background_tasks.add_task(
                 notification_service.send_prescription_email,
                 consultation.patient.email,
-                presigned_url
+                share_url
             )
             
-        return {"url": presigned_url}
+        return {
+            "url": presigned_url,
+            "token": token,
+            "share_url": share_url
+        }
     except ValueError as e:
         return JSONResponse(status_code=400, content={"message": str(e)})
 
@@ -233,7 +245,7 @@ async def get_prescription(
     db: AsyncSession = Depends(get_db),
 ):
     """
-    Get the presigned URL for an already generated PDF prescription.
+    Get the presigned URL and signed share token for an already generated PDF prescription.
     """
     stmt = select(Consultation).where(Consultation.id == consultation_id, Consultation.doctor_id == doctor.id)
     consultation = await db.scalar(stmt)
@@ -244,6 +256,12 @@ async def get_prescription(
         return JSONResponse(status_code=404, content={"message": "Prescription not generated yet."})
 
     presigned_url = await s3_service.generate_presigned_url(consultation.prescription_s3_key, bucket_name=settings.PDF_BUCKET_NAME)
-    return {"url": presigned_url}
+    token = create_prescription_token(consultation_id)
+    share_url = f"{settings.FRONTEND_URL}/consultations/public/{consultation_id}/prescription?token={token}"
+    return {
+        "url": presigned_url,
+        "token": token,
+        "share_url": share_url
+    }
 
 

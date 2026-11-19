@@ -6,6 +6,8 @@ import { useAuth } from "@clerk/nextjs";
 
 interface PrescriptionResponse {
   url: string;
+  token?: string;
+  share_url?: string;
 }
 
 export function useGeneratePrescription() {

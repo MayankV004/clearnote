@@ -202,3 +202,54 @@ class TestAudioStreamWebSocketRoute:
 
         app.dependency_overrides.pop(get_current_doctor_ws, None)
 
+
+class TestPublicPrescriptionRoute:
+    """GET /consultations/public/{consultation_id}/prescription"""
+
+    @pytest.mark.asyncio
+    async def test_rejects_missing_token(self, client, db_session):
+        doctor = await make_doctor(db_session)
+        patient = await make_patient(db_session, doctor.id)
+        consultation = await make_consultation(db_session, doctor.id, patient.id)
+        consultation.prescription_s3_key = "prescriptions/test.pdf"
+        await db_session.commit()
+
+        response = await client.get(f"/consultations/public/{consultation.id}/prescription")
+        # Without token, must be rejected (401 or 422 if required param missing)
+        assert response.status_code in (401, 422)
+
+    @pytest.mark.asyncio
+    async def test_rejects_tampered_token(self, client, db_session):
+        doctor = await make_doctor(db_session)
+        patient = await make_patient(db_session, doctor.id)
+        consultation = await make_consultation(db_session, doctor.id, patient.id)
+        consultation.prescription_s3_key = "prescriptions/test.pdf"
+        await db_session.commit()
+
+        response = await client.get(f"/consultations/public/{consultation.id}/prescription?token=invalid.tampered")
+        assert response.status_code == 401
+
+    @pytest.mark.asyncio
+    async def test_accepts_valid_signed_token(self, client, db_session, monkeypatch):
+        from app.core.security import create_prescription_token
+        from app.services.s3_service import s3_service
+
+        doctor = await make_doctor(db_session)
+        patient = await make_patient(db_session, doctor.id)
+        consultation = await make_consultation(db_session, doctor.id, patient.id)
+        consultation.prescription_s3_key = "prescriptions/test.pdf"
+        await db_session.commit()
+
+        token = create_prescription_token(consultation.id)
+
+        # Mock s3 presigned url generation
+        monkeypatch.setattr(s3_service, "generate_presigned_url", AsyncMock(return_value="https://s3.example.com/test.pdf"))
+
+        response = await client.get(
+            f"/consultations/public/{consultation.id}/prescription?token={token}",
+            follow_redirects=False
+        )
+        assert response.status_code in (302, 307)
+        assert response.headers["location"] == "https://s3.example.com/test.pdf"
+
+
