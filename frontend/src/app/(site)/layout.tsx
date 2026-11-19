@@ -3,6 +3,7 @@
 import { useEffect } from "react";
 import { useUser, useAuth } from "@clerk/nextjs";
 import { useRouter } from "next/navigation";
+import { OfflineBanner } from "@/components/ui/OfflineBanner";
 
 // ─── Route-agnostic loading skeleton ─────────────────────────────────────────
 //
@@ -64,6 +65,11 @@ export default function SiteLayout({ children }: { children: React.ReactNode }) 
           headers: { Authorization: `Bearer ${token}` },
         });
 
+        if (res.status === 401) {
+          router.replace("/sign-in");
+          return;
+        }
+
         if (res.status === 404) {
           router.replace("/onboarding");
           return;
@@ -89,5 +95,10 @@ export default function SiteLayout({ children }: { children: React.ReactNode }) 
   // content-level skeleton independently.
   if (!isLoaded || !user) return <AuthLoadingSkeleton />;
 
-  return <>{children}</>;
+  return (
+    <>
+      <OfflineBanner />
+      {children}
+    </>
+  );
 }

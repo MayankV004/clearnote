@@ -5,6 +5,10 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
+### Clinical Workflow & Edge Cases
+- **TICKET-15 (`FLOW-02`)**: Added pagination (`page`, `page_size`) and metadata headers (`X-Total-Count`, `X-Page`, `X-Page-Size`) to `GET /patients/` and `GET /consultations/`. Added responsive pagination controls to `PatientList` and `ConsultationList`.
+- **Flow Hardening (`APP-FLOW`)**: Added client-side network offline detection via `<OfflineBanner />` utilizing React 19 `useSyncExternalStore`, notifying clinicians immediately upon network loss to prevent unsaved edits. Handled expired Clerk sessions (401) with clean redirects to `/sign-in`.
+
 ### Data & Reliability
 - **TICKET-09B (`REL-01` / `DATA-04`)**: Added background task idempotency guards in `consultation_service.py:_run_transcription`, preventing duplicate processing jobs from executing concurrently or corrupting notes already in `PROCESSING`, `AWAITING_REVIEW`, or `COMPLETE`. Upgraded `GET /health` into a deep probe testing live database connectivity with degraded status signaling. Added metadata `source_filter` filtering and `reindex_guidelines` batch recomputation to `RAGService`. Eliminated N+1 queries in consultation queries by standardizing `selectinload` across `soap_note`, `medications`, `diagnoses`, and `interactions`.
 - **TICKET-11 (`REL-03`)**: Standardized all Boto3 S3 client calls onto Python 3.12 `asyncio.to_thread` across `upload_audio`, `upload_pdf`, `upload_signature`, `download_audio`, `delete_object`, and `generate_presigned_url`. Eliminates framework coupling and guarantees non-blocking execution on the main ASGI event loop.

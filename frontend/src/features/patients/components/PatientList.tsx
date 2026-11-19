@@ -1,5 +1,6 @@
 "use client";
 
+import { useState } from "react";
 import Link from "next/link";
 import { ChevronRight, Clock, Plus, Users } from "lucide-react";
 import { usePatients } from "../api/usePatients";
@@ -39,7 +40,9 @@ interface PatientListProps {
 }
 
 export default function PatientList({ onAddPatient }: PatientListProps) {
-  const { data: patients, isLoading, isError, error } = usePatients();
+  const [page, setPage] = useState(1);
+  const pageSize = 8;
+  const { data: patients, isLoading, isError, error } = usePatients(page, pageSize);
 
   if (isLoading) return <PatientListSkeleton />;
 
@@ -56,9 +59,9 @@ export default function PatientList({ onAddPatient }: PatientListProps) {
     );
   }
 
-  const recentPatients = (patients ?? []).slice(0, 8);
+  const patientItems = patients ?? [];
 
-  if (recentPatients.length === 0) {
+  if (patientItems.length === 0 && page === 1) {
     return (
       <div className="flex flex-col items-center justify-center py-16 text-center px-6">
         <div className="w-16 h-16 rounded-3xl bg-white/50 flex items-center justify-center mb-5 border border-cyan-100/50 shadow-sm">
@@ -79,38 +82,61 @@ export default function PatientList({ onAddPatient }: PatientListProps) {
   }
 
   return (
-    <ul className="divide-y divide-cyan-100/50">
-      {recentPatients.map((patient) => (
-        <li key={patient.id}>
-          <Link
-            href={`/dashboard/patients/${patient.id}`}
-            className="flex items-center gap-4 px-6 py-4 hover:bg-white/30 transition-all duration-200 group"
-          >
-            <div className="w-10 h-10 rounded-full bg-cyan-100 text-cyan-700 text-sm font-bold flex items-center justify-center flex-shrink-0 shadow-sm">
-              {getInitials(patient.name)}
-            </div>
-
-            <div className="flex-1 min-w-0">
-              <p className="font-semibold text-slate-900 truncate group-hover:text-cyan-700 transition-colors">
-                {patient.name}
-              </p>
-              <p className="text-xs text-slate-500 mt-0.5 truncate">
-                {[patient.phone, patient.email].filter(Boolean).join(" · ") ||
-                  "No contact info"}
-              </p>
-            </div>
-
-            <div className="text-right flex-shrink-0">
-              <div className="flex items-center gap-1 text-xs text-slate-400 font-medium">
-                <Clock className="w-3.5 h-3.5" />
-                {timeAgo(patient.created_at)}
+    <div>
+      <ul className="divide-y divide-cyan-100/50">
+        {patientItems.map((patient) => (
+          <li key={patient.id}>
+            <Link
+              href={`/dashboard/patients/${patient.id}`}
+              className="flex items-center gap-4 px-6 py-4 hover:bg-white/30 transition-all duration-200 group"
+            >
+              <div className="w-10 h-10 rounded-full bg-cyan-100 text-cyan-700 text-sm font-bold flex items-center justify-center flex-shrink-0 shadow-sm">
+                {getInitials(patient.name)}
               </div>
-            </div>
 
-            <ChevronRight className="w-4 h-4 text-cyan-300 group-hover:text-cyan-600 transition-colors flex-shrink-0 group-hover:translate-x-0.5" />
-          </Link>
-        </li>
-      ))}
-    </ul>
+              <div className="flex-1 min-w-0">
+                <p className="font-semibold text-slate-900 truncate group-hover:text-cyan-700 transition-colors">
+                  {patient.name}
+                </p>
+                <p className="text-xs text-slate-500 mt-0.5 truncate">
+                  {[patient.phone, patient.email].filter(Boolean).join(" · ") ||
+                    "No contact info"}
+                </p>
+              </div>
+
+              <div className="text-right flex-shrink-0">
+                <div className="flex items-center gap-1 text-xs text-slate-400 font-medium">
+                  <Clock className="w-3.5 h-3.5" />
+                  {timeAgo(patient.created_at)}
+                </div>
+              </div>
+
+              <ChevronRight className="w-4 h-4 text-cyan-300 group-hover:text-cyan-600 transition-colors flex-shrink-0 group-hover:translate-x-0.5" />
+            </Link>
+          </li>
+        ))}
+      </ul>
+
+      {/* Pagination Controls */}
+      {(page > 1 || patientItems.length === pageSize) && (
+        <div className="flex items-center justify-between px-6 py-3 border-t border-cyan-100/50 bg-slate-50/50">
+          <button
+            onClick={() => setPage((p) => Math.max(1, p - 1))}
+            disabled={page === 1}
+            className="text-xs font-semibold px-3 py-1.5 rounded-lg border border-slate-200 bg-white text-slate-700 hover:bg-slate-50 disabled:opacity-40 disabled:cursor-not-allowed transition-all"
+          >
+            Previous
+          </button>
+          <span className="text-xs text-slate-500 font-medium">Page {page}</span>
+          <button
+            onClick={() => setPage((p) => p + 1)}
+            disabled={patientItems.length < pageSize}
+            className="text-xs font-semibold px-3 py-1.5 rounded-lg border border-slate-200 bg-white text-slate-700 hover:bg-slate-50 disabled:opacity-40 disabled:cursor-not-allowed transition-all"
+          >
+            Next
+          </button>
+        </div>
+      )}
+    </div>
   );
 }

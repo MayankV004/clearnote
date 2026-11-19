@@ -1,4 +1,5 @@
-from typing import List
+from typing import List, Tuple, Union
+from sqlalchemy import func
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.future import select
 
@@ -18,28 +19,29 @@ from app.services.cache_service import (
 class PatientService:
 
     @staticmethod
-    async def get_patients_for_doctor(db: AsyncSession, doctor_id) -> List[Patient]:
-        ck = key_patients_list(str(doctor_id))
+    async def get_patients_for_doctor(
+        db: AsyncSession, doctor_id, page: int = 1, page_size: int = 50, return_total: bool = False
+    ) -> Union[List[Patient], Tuple[List[Patient], int]]:
+        # Count total active patients for this doctor
+        count_stmt = select(func.count(Patient.id)).where(
+            Patient.doctor_id == doctor_id,
+            Patient.deleted_at.is_(None)
+        )
+        total_res = await db.execute(count_stmt)
+        total_count = total_res.scalar() or 0
 
-        # ── Cache read ────────────────────────────────────────────────────────
-        cached = await cache.get(ck)
-        if cached is not None:
-            logger.debug(f"Cache HIT: {ck}")
-            return [PatientResponse.model_validate(p) for p in cached]
-
-        # ── DB ────────────────────────────────────────────────────────────────
+        # DB Query with offset and limit
+        offset = (page - 1) * page_size
         stmt = select(Patient).where(
             Patient.doctor_id == doctor_id,
             Patient.deleted_at.is_(None)
-        ).order_by(Patient.created_at.desc())
+        ).order_by(Patient.created_at.desc()).offset(offset).limit(page_size)
 
         result = await db.execute(stmt)
         patients = result.scalars().all()
 
-        # ── Write cache ───────────────────────────────────────────────────────
-        serialised = [PatientResponse.model_validate(p).model_dump(mode="json") for p in patients]
-        await cache.set(ck, serialised, TTL_PATIENTS_LIST)
-
+        if return_total:
+            return patients, total_count
         return patients
 
     @staticmethod

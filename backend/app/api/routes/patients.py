@@ -1,6 +1,6 @@
 from typing import List
 from uuid import UUID
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, status, Response, Query
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.future import select
 
@@ -18,11 +18,20 @@ from app.services.patient_service import PatientService
 
 @router.get("/", response_model=List[PatientResponse])
 async def list_patients(
+    response: Response,
+    page: int = Query(1, ge=1),
+    page_size: int = Query(50, ge=1, le=100),
     doctor: Doctor = Depends(get_current_doctor),
     db: AsyncSession = Depends(get_db)
 ):
-    """List all active patients for the authenticated doctor."""
-    return await PatientService.get_patients_for_doctor(db, doctor.id)
+    """List active patients for the authenticated doctor with pagination."""
+    patients, total_count = await PatientService.get_patients_for_doctor(
+        db, doctor.id, page=page, page_size=page_size, return_total=True
+    )
+    response.headers["X-Total-Count"] = str(total_count)
+    response.headers["X-Page"] = str(page)
+    response.headers["X-Page-Size"] = str(page_size)
+    return patients
 
 @router.get("/{patient_id}", response_model=PatientResponse)
 async def get_patient(

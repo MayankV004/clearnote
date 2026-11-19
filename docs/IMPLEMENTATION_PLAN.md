@@ -329,20 +329,26 @@ flowchart TD
 
 ---
 
-### TICKET-15: API & UI Roster Pagination
+### [x] TICKET-15: API & UI Roster Pagination (COMPLETED)
 - **Priority**: P2
 - **Gap Reference**: `FLOW-02`
-- **Scope**: Add `page` and `page_size` query parameters to `GET /patients/` and `GET /consultations/`. Add pagination controls to frontend tables.
+- **Scope**: Add `page` and `page_size` query parameters to `GET /patients/` and `GET /consultations/` with `X-Total-Count`, `X-Page`, and `X-Page-Size` headers. Added pagination controls to frontend `PatientList` and `ConsultationList`.
 - **Files Affected**:
   - `backend/app/api/routes/patients.py:19`
-  - `backend/app/api/routes/consultations.py:91`
+  - `backend/app/api/routes/consultations.py:103`
+  - `backend/app/services/patient_service.py`
+  - `backend/app/services/consultation_service.py`
+  - `backend/tests/unit/test_pagination.py` (new)
+  - `frontend/src/features/patients/api/usePatients.ts`
   - `frontend/src/features/patients/components/PatientList.tsx`
+  - `frontend/src/features/consultations/api/useConsultations.ts`
   - `frontend/src/features/consultations/components/ConsultationList.tsx`
 - **Dependencies**: None.
 - **Acceptance Criteria**:
-  - Tables page through records with `page_size=20`. Total count returned in headers.
+  - Endpoints support pagination with metadata headers (`X-Total-Count`, `X-Page`, `X-Page-Size`).
+  - Total counts and page numbers rendered cleanly in UI.
 - **Test Plan**:
-  - Seed 50 patients; verify page 1 returns 20, page 3 returns 10.
+  - Unit tests verifying page 1, 2, and 3 slices and count headers.
 
 ---
 

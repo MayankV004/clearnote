@@ -1,6 +1,7 @@
-from typing import List
+from typing import List, Tuple, Union
 
 from fastapi import BackgroundTasks
+from sqlalchemy import func
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.future import select
 from sqlalchemy.orm import selectinload
@@ -72,24 +73,22 @@ class ConsultationService:
 
     @staticmethod
     async def get_consultations_for_patient(
-        db: AsyncSession, doctor_id, patient_id
-    ) -> List[Consultation]:
-        ck = key_consultations_list(str(doctor_id), str(patient_id))
+        db: AsyncSession, doctor_id, patient_id, page: int = 1, page_size: int = 50, return_total: bool = False
+    ) -> Union[List[Consultation], Tuple[List[Consultation], int]]:
+        count_stmt = select(func.count(Consultation.id)).where(
+            Consultation.patient_id == patient_id,
+            Consultation.doctor_id == doctor_id,
+            Consultation.deleted_at.is_(None),
+        )
+        total_res = await db.execute(count_stmt)
+        total_count = total_res.scalar() or 0
 
-        # ── Cache read ────────────────────────────────────────────────────────
-        cached = await cache.get(ck)
-        if cached is not None:
-            logger.debug(f"Cache HIT: {ck}")
-            # Return Pydantic models directly — ORM reconstruction breaks on nested
-            # relationship fields (soap_note, medications, diagnoses).
-            return [ConsultationResponse.model_validate(c) for c in cached]
-
-        # ── DB ────────────────────────────────────────────────────────────────
+        offset = (page - 1) * page_size
         stmt = select(Consultation).where(
             Consultation.patient_id == patient_id,
             Consultation.doctor_id == doctor_id,
             Consultation.deleted_at.is_(None),
-        ).order_by(Consultation.created_at.desc()).options(
+        ).order_by(Consultation.created_at.desc()).offset(offset).limit(page_size).options(
             selectinload(Consultation.soap_note),
             selectinload(Consultation.medications),
             selectinload(Consultation.diagnoses),
@@ -99,10 +98,8 @@ class ConsultationService:
         result = await db.execute(stmt)
         consultations = result.scalars().all()
 
-        # ── Write cache ───────────────────────────────────────────────────────
-        serialised = [ConsultationResponse.model_validate(c).model_dump(mode="json") for c in consultations]
-        await cache.set(ck, serialised, TTL_CONSULTATIONS)
-
+        if return_total:
+            return consultations, total_count
         return consultations
 
     @staticmethod

@@ -1,5 +1,6 @@
 "use client";
 
+import { useState } from "react";
 import { useConsultations } from "../api/useConsultations";
 import { FileText, Loader2, AlertCircle } from "lucide-react";
 import { formatDate } from "@/lib/utils";
@@ -7,7 +8,9 @@ import { useRouter } from "next/navigation";
 
 export function ConsultationList({ patientId }: { patientId: string }) {
   const router = useRouter();
-  const { data, isLoading, isError, error } = useConsultations(patientId);
+  const [page, setPage] = useState(1);
+  const pageSize = 10;
+  const { data, isLoading, isError, error } = useConsultations(patientId, page, pageSize);
 
   if (isLoading) {
     return (
@@ -115,6 +118,27 @@ export function ConsultationList({ patientId }: { patientId: string }) {
           </div>
         ))}
       </div>
+
+      {/* Pagination Controls */}
+      {(page > 1 || (data && data.length === pageSize)) && (
+        <div className="flex items-center justify-between px-6 py-3 border-t border-slate-100 bg-slate-50/50 mt-4 rounded-b-3xl">
+          <button
+            onClick={() => setPage((p) => Math.max(1, p - 1))}
+            disabled={page === 1}
+            className="text-xs font-semibold px-3 py-1.5 rounded-lg border border-slate-200 bg-white text-slate-700 hover:bg-slate-50 disabled:opacity-40 disabled:cursor-not-allowed transition-all"
+          >
+            Previous
+          </button>
+          <span className="text-xs text-slate-500 font-medium">Page {page}</span>
+          <button
+            onClick={() => setPage((p) => p + 1)}
+            disabled={!data || data.length < pageSize}
+            className="text-xs font-semibold px-3 py-1.5 rounded-lg border border-slate-200 bg-white text-slate-700 hover:bg-slate-50 disabled:opacity-40 disabled:cursor-not-allowed transition-all"
+          >
+            Next
+          </button>
+        </div>
+      )}
     </div>
   );
 }

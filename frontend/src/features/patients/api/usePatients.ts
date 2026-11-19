@@ -14,13 +14,13 @@ import type { Patient } from "../types";
  *  - Automatically refreshed when `useCreatePatient` mutation invalidates
  *    the ["patients"] query key.
  */
-export function usePatients() {
+export function usePatients(page = 1, pageSize = 50) {
   const api = useApiClient();
   const { isSignedIn } = useAuth();
 
   return useQuery<Patient[]>({
-    queryKey: ["patients"],
-    queryFn: () => api.get<Patient[]>("/patients/"),
+    queryKey: ["patients", page, pageSize],
+    queryFn: () => api.get<Patient[]>(`/patients/?page=${page}&page_size=${pageSize}`),
     enabled: !!isSignedIn,
     staleTime: 1000 * 60 * 5, // 5 minutes
   });

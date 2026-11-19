@@ -3,7 +3,7 @@ import tempfile
 from typing import List
 from uuid import UUID
 from pydantic import BaseModel
-from fastapi import APIRouter, Depends, WebSocket, WebSocketDisconnect, BackgroundTasks, status, UploadFile, File, Query, Request, HTTPException
+from fastapi import APIRouter, Depends, WebSocket, WebSocketDisconnect, BackgroundTasks, status, UploadFile, File, Query, Request, HTTPException, Response
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.future import select
 from sqlalchemy.orm import selectinload
@@ -102,14 +102,23 @@ async def create_consultation(
 
 @router.get("/", response_model=List[ConsultationResponse])
 async def list_consultations(
+    response: Response,
     patient_id: UUID,
+    page: int = Query(1, ge=1),
+    page_size: int = Query(50, ge=1, le=100),
     doctor: Doctor = Depends(get_current_doctor),
     db: AsyncSession = Depends(get_db),
 ):
     """
-    List all consultations for a specific patient.
+    List all consultations for a specific patient with pagination.
     """
-    return await ConsultationService.get_consultations_for_patient(db, doctor.id, patient_id)
+    consultations, total_count = await ConsultationService.get_consultations_for_patient(
+        db, doctor.id, patient_id, page=page, page_size=page_size, return_total=True
+    )
+    response.headers["X-Total-Count"] = str(total_count)
+    response.headers["X-Page"] = str(page)
+    response.headers["X-Page-Size"] = str(page_size)
+    return consultations
 
 
 @router.get("/{consultation_id}", response_model=ConsultationResponse)
