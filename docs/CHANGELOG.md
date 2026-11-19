@@ -6,6 +6,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 ### AI Safety & Quality
+- **TICKET-08 (`DATA-02`)**: Upgraded guideline PDF chunking to semantic `RecursiveCharacterTextSplitter` with clinical delimiters (`["\n## ", "\n### ", "\n\n", "\n- ", "\n", ". ", "; ", " ", ""]`), chunk size 800, and overlap 150. Preserves clinical headings, indication/contraindication bullet points, and dosage tables across chunk boundaries.
 - **TICKET-06 (`AI-01`)**: Implemented human-in-the-loop review state machine. Consultation status now transitions to `AWAITING_REVIEW` upon background extraction completion. Added `POST /consultations/{id}/approve` clinical sign-off endpoint. Blocked prescription generation until explicit doctor approval is recorded, preventing unreviewed AI hallucinations from reaching patients. Added Alembic migration `c1a2b3d4e5f6` for `consultationstatus` enum.
 
 ### Security

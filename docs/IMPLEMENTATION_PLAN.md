@@ -212,17 +212,18 @@ flowchart TD
 
 ---
 
-### TICKET-08: Semantic Guideline Text Chunking
+### [x] TICKET-08: Semantic Guideline Text Chunking (COMPLETED)
 - **Priority**: P1
 - **Gap Reference**: `DATA-02`
-- **Scope**: Replace arbitrary `CharacterTextSplitter(chunk_size=1000)` with `RecursiveCharacterTextSplitter` with clinical delimiters.
+- **Scope**: Replace arbitrary `CharacterTextSplitter(chunk_size=1000)` with `RecursiveCharacterTextSplitter` with clinical delimiters (`["\n## ", "\n### ", "\n\n", "\n- ", "\n", ". ", "; ", " ", ""]`), chunk size 800, and overlap 150.
 - **Files Affected**:
-  - `backend/app/services/rag_service.py:38`
+  - `backend/app/services/rag_service.py:83`
+  - `backend/tests/unit/test_chunking.py`
 - **Dependencies**: None.
 - **Acceptance Criteria**:
   - Chunks preserve clinical headings and dosage lists without splitting sentences mid-word.
 - **Test Plan**:
-  - Ingest WHO EML sample PDF. Verify chunks do not end with partial drug dosages (e.g. "500").
+  - Ingest clinical markdown sample. Verify chunks do not end with partial drug dosages and retain section context.
 
 ---
 

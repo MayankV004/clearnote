@@ -80,15 +80,34 @@ class RAGService:
             logger.error(f"Failed to ingest guidelines: {e}")
             raise
 
+    @staticmethod
+    def get_text_splitter() -> RecursiveCharacterTextSplitter:
+        """
+        Returns a RecursiveCharacterTextSplitter tuned for clinical documents and guidelines (TICKET-08).
+        Preserves section headings, bulleted lists, contraindications, and dosages.
+        """
+        return RecursiveCharacterTextSplitter(
+            chunk_size=800,
+            chunk_overlap=150,
+            separators=[
+                "\n## ",
+                "\n### ",
+                "\n\n",
+                "\n- ",
+                "\n",
+                ". ",
+                "; ",
+                " ",
+                "",
+            ],
+        )
+
     async def _process_pdf(self, tmp_path: str, source_name: str, db: AsyncSession) -> int:
         """Shared PDF processing logic: extract text → chunk → embed → store."""
         import os
         try:
             chunks = []
-            splitter = RecursiveCharacterTextSplitter(
-                chunk_size=1600,
-                chunk_overlap=200,
-            )
+            splitter = self.get_text_splitter()
 
             with pdfplumber.open(tmp_path) as pdf:
                 for i, page in enumerate(pdf.pages):
