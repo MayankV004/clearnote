@@ -3,7 +3,7 @@ import httpx
 import tempfile
 from typing import List
 import pdfplumber
-from google import genai
+from fastembed import TextEmbedding
 from groq import AsyncGroq
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.future import select
@@ -18,14 +18,14 @@ from app.schemas.rag import InteractionResult
 
 class RAGService:
     def __init__(self):
-        self._gemini_client = None
+        self._embedding_model = None
         self._groq_client = None
 
     @property
-    def gemini_client(self):
-        if self._gemini_client is None:
-            self._gemini_client = genai.Client(api_key=settings.GEMINI_API_KEY)
-        return self._gemini_client
+    def embedding_model(self) -> TextEmbedding:
+        if self._embedding_model is None:
+            self._embedding_model = TextEmbedding(model_name="nomic-ai/nomic-embed-text-v1.5")
+        return self._embedding_model
 
     @property
     def groq_client(self) -> AsyncGroq:
@@ -35,13 +35,15 @@ class RAGService:
 
     async def get_embedding(self, text: str) -> List[float]:
         try:
-            response = self.gemini_client.models.embed_content(
-                model="embedding-001",
-                contents=text
-            )
-            return response.embeddings[0].values
+            embeddings = list(self.embedding_model.embed([text]))
+            if not embeddings:
+                return [0.0] * 768
+            emb = embeddings[0]
+            if hasattr(emb, "tolist"):
+                return emb.tolist()
+            return list(emb)
         except Exception as e:
-            logger.error(f"Failed to generate Gemini embedding: {e}")
+            logger.error(f"Failed to generate Nomic embedding: {e}")
             return [0.0] * 768
 
     async def ingest_from_bytes(self, pdf_bytes: bytes, source_name: str, db: AsyncSession) -> int:
@@ -95,7 +97,7 @@ class RAGService:
                         continue
                     text_chunks = splitter.split_text(text)
                     for chunk_text in text_chunks:
-                        embedding = await self.get_embedding(chunk_text)
+                        embedding = await self.get_embedding(f"search_document: {chunk_text}")
                         chunk_record = GuidelineChunk(
                             source=source_name,
                             page=i + 1,
@@ -126,7 +128,7 @@ class RAGService:
                 drug_a = medications[i].name
                 drug_b = medications[j].name
                 
-                query_text = f"drug interaction between {drug_a} and {drug_b} in context of {diag_context}"
+                query_text = f"search_query: drug interaction between {drug_a} and {drug_b} in context of {diag_context}"
                 query_embedding = await self.get_embedding(query_text)
 
                 # Cosine similarity search using pgvector `<=>`

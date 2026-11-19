@@ -59,7 +59,7 @@ class DeepgramService:
     """
 
     # Model to use – nova-2-medical gives the best accuracy for clinical content
-    MODEL = "nova-3"
+    MODEL = "nova-3-medical"
 
     def __init__(self) -> None:
         # Client is created lazily so that unit tests can be written without a
