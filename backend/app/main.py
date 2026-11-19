@@ -81,8 +81,19 @@ async def patient_not_owned_handler(request: Request, exc: PatientNotOwnedExcept
 # health check 
 
 @app.get("/health")
-async def health():
-    return {"status": "ok"}
+async def health(db: AsyncSession = Depends(get_db)):
+    db_status = "ok"
+    try:
+        await db.execute(text("SELECT 1"))
+    except Exception as e:
+        logger.error(f"Health check probe failed: {e}")
+        db_status = "unhealthy"
+
+    return {
+        "status": "ok" if db_status == "ok" else "degraded",
+        "database": db_status,
+        "version": "1.0.0"
+    }
 
 
 @app.get("/db-test")

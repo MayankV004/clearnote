@@ -90,6 +90,7 @@ class ConsultationService:
             Consultation.doctor_id == doctor_id,
             Consultation.deleted_at.is_(None),
         ).order_by(Consultation.created_at.desc()).options(
+            selectinload(Consultation.soap_note),
             selectinload(Consultation.medications),
             selectinload(Consultation.diagnoses),
             selectinload(Consultation.interactions)
@@ -121,6 +122,7 @@ class ConsultationService:
             Consultation.id == consultation_id,
             Consultation.doctor_id == doctor_id,
         ).options(
+            selectinload(Consultation.soap_note),
             selectinload(Consultation.medications),
             selectinload(Consultation.diagnoses),
             selectinload(Consultation.interactions)
@@ -309,6 +311,13 @@ async def _run_transcription(consultation_id: str, s3_key: str) -> None:
         consultation = await db.scalar(stmt)
         if not consultation:
             logger.error(f"Consultation {consultation_id} not found in background task.")
+            return
+
+        # Idempotency guard: avoid parallel processing or redundant reprocessing
+        if consultation.status in (ConsultationStatus.PROCESSING, ConsultationStatus.AWAITING_REVIEW, ConsultationStatus.COMPLETE):
+            logger.warning(
+                f"Consultation {consultation_id} is already in state {consultation.status}. Skipping duplicate execution."
+            )
             return
 
         consultation.status = ConsultationStatus.PROCESSING

@@ -1,7 +1,7 @@
 import json
 import httpx
 import tempfile
-from typing import List
+from typing import List, Optional
 import pdfplumber
 from fastembed import TextEmbedding
 from groq import AsyncGroq
@@ -135,7 +135,16 @@ class RAGService:
 
 
 
-    async def check_drug_interactions(self, consultation_id: str, medications: list, diagnoses: list, db: AsyncSession) -> None:
+    EMBEDDING_VERSION: str = "nomic-embed-text-v1.5"
+
+    async def check_drug_interactions(
+        self,
+        consultation_id: str,
+        medications: list,
+        diagnoses: list,
+        db: AsyncSession,
+        source_filter: Optional[str] = None,
+    ) -> None:
         if len(medications) < 2:
             return
 
@@ -153,7 +162,10 @@ class RAGService:
                 # Cosine similarity search using pgvector `<=>` (with fallback for unsupported dialects)
                 top_chunks = []
                 try:
-                    stmt = select(GuidelineChunk).order_by(
+                    stmt = select(GuidelineChunk)
+                    if source_filter:
+                        stmt = stmt.where(GuidelineChunk.source.ilike(f"%{source_filter}%"))
+                    stmt = stmt.order_by(
                         GuidelineChunk.embedding.cosine_distance(query_embedding)
                     ).limit(3)
                     result = await db.execute(stmt)
@@ -227,5 +239,29 @@ class RAGService:
                     db.add(fallback_interaction)
 
         await db.commit()
+
+    async def reindex_guidelines(self, db: AsyncSession, batch_size: int = 50) -> int:
+        """
+        Recompute embeddings for guideline chunks using the current embedding model version.
+        Processes in batches and commits updates to pgvector storage.
+        """
+        logger.info(f"Starting guideline re-indexing using {self.EMBEDDING_VERSION}...")
+        stmt = select(GuidelineChunk).order_by(GuidelineChunk.id)
+        result = await db.execute(stmt)
+        chunks = result.scalars().all()
+
+        reindexed_count = 0
+        for chunk in chunks:
+            text_to_embed = f"passage: {chunk.content}"
+            embedding = await self.get_embedding(text_to_embed)
+            chunk.embedding = embedding
+            reindexed_count += 1
+            if reindexed_count % batch_size == 0:
+                await db.commit()
+                logger.info(f"Re-indexed {reindexed_count}/{len(chunks)} chunks.")
+
+        await db.commit()
+        logger.info(f"Successfully re-indexed {reindexed_count} guideline chunks.")
+        return reindexed_count
 
 rag_service = RAGService()

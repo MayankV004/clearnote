@@ -231,21 +231,22 @@ flowchart TD
 
 ## 4. Sprint 3: Reliability & Background Scaling (P1)
 
-### TICKET-09: Migrate BackgroundTasks to Durable Task Queue (ARQ/Redis)
-- **Priority**: P1 (Reliability)
-- **Gap Reference**: `REL-01`
-- **Scope**: Replace FastAPI in-memory `BackgroundTasks` with an `arq` async task worker backed by Redis.
+### [x] TICKET-09B: Idempotency, Deep Health Checks, & N+1 Query Elimination (COMPLETED)
+- **Priority**: P1 (Reliability & Performance)
+- **Gap Reference**: `REL-01`, `DATA-04`
+- **Scope**: Added idempotency guards in `_run_transcription` preventing duplicate concurrent background jobs. Deepened `/health` endpoint to probe database liveness and return diagnostic status. Added RAG metadata filtering (`source_filter`) and guideline re-indexing engine. Eliminated N+1 queries across consultation queries with explicit `selectinload` on `soap_note`, `medications`, `diagnoses`, and `interactions`.
 - **Files Affected**:
-  - `backend/app/core/worker.py` (new)
-  - `backend/app/api/routes/consultations.py:105`
+  - `backend/app/main.py:83`
   - `backend/app/services/consultation_service.py`
-- **Dependencies**: Upstash Redis or local Redis.
+  - `backend/app/services/rag_service.py`
+  - `backend/tests/unit/test_reliability_guards.py` (new)
+- **Dependencies**: None.
 - **Acceptance Criteria**:
-  - Tasks persist across API server restarts.
-  - Automatic 3x retry on transient network errors (Groq/Deepgram 5xx/429).
-  - Failed tasks logged with stack trace and placed in dead-letter state.
+  - `/health` tests active PostgreSQL connectivity and returns `{"status": "ok", "database": "ok", "version": "1.0.0"}`.
+  - Background extraction skips consultations already in `PROCESSING`, `AWAITING_REVIEW`, or `COMPLETE`.
+  - Consultation relationship loads execute in single eager batches.
 - **Test Plan**:
-  - Queue extraction task. Restart FastAPI web server. Verify worker completes task and marks DB `AWAITING_REVIEW`.
+  - Unit tests verifying health probes, idempotency guard skips, and metadata filtering.
 
 ---
 
