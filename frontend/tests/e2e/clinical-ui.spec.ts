@@ -28,7 +28,7 @@ test.describe('ClearNote Clinical Design System & UI Overhaul', () => {
     await expect(page.locator('text=21 CFR Part 11 Compliant').first()).toBeVisible();
   });
 
-  test('Clinical Sidebar renders doctor navigation links and quick actions', async ({ page }) => {
+  test('Clinical Sidebar renders doctor navigation links, quick actions, and toggles collapsibility', async ({ page }) => {
     await page.goto('/dev/dashboard');
 
     // Sidebar Brand and BAA status
@@ -42,6 +42,20 @@ test.describe('ClearNote Clinical Design System & UI Overhaul', () => {
 
     // Quick action buttons
     await expect(page.locator('button:has-text("Start Recording (R)")').first()).toBeVisible();
+
+    // Test Sidebar Collapsing and Expanding
+    const collapseBtn = page.locator('button[aria-label="Collapse sidebar"]');
+    await expect(collapseBtn).toBeVisible();
+    await collapseBtn.click();
+
+    // In collapsed mode, expand button is rendered
+    const expandBtn = page.locator('button[aria-label="Expand sidebar"]');
+    await expect(expandBtn).toBeVisible();
+
+    // Click expand button to restore full sidebar
+    await expandBtn.click();
+    await expect(page.locator('text=All Patients').first()).toBeVisible();
+    await expect(collapseBtn).toBeVisible();
   });
 
   test('Clinical Dashboard Encounter Roster renders table and dense mode toggle', async ({ page }) => {

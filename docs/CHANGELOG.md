@@ -5,6 +5,17 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
+### Collapsible Clinical Sidebar & Typography Upgrade
+- **Collapsible Clinical Sidebar (`<AppShell />`)**:
+  - Implemented sleek collapsible state transitioning the sidebar between full `w-64` (256px) and icon-rail `w-[72px]` (72px) with smooth hardware-accelerated width and main-content padding transitions (`duration-200 ease-in-out`).
+  - Added header toggle button featuring `PanelLeftClose` (collapse) and `PanelLeftOpen` (expand) with keyboard shortcut support (`⌘[` or `⌘B`).
+  - Preserved collapsed preference across reloads via `localStorage` (`clearnote:sidebar-collapsed`) with zero SSR hydration mismatch.
+  - In collapsed mode, rendered compact, accessible icon actions with side-floating tooltips (`<Tooltip side="right" />`):
+    - Stethoscope mark, ShieldCheck HIPAA status, Mic ("Start Recording `R`"), UserPlus ("+ Register Patient `N`"), navigation links with active state indicator pills, Clinical Search (`⌘K`), Attending MD avatar, ThemeToggle, and Sign Out.
+- **Modern Typography Upgrade (`Plus Jakarta Sans` + `JetBrains Mono`)**:
+  - Replaced tech-oriented `Geist` with Google Fonts `Plus Jakarta Sans` for UI typography across all weights (`400`, `500`, `600`, `700`) paired with `JetBrains Mono` for tabular numerals, ICD-10 codes, dosages, and timestamps.
+  - Configured global typography enhancements: optical letter-spacing (`-0.011em` body, `-0.022em` headings), `font-feature-settings: "zero", "calt"`, and subpixel antialiasing for maximum clinical legibility under ambient hospital lighting.
+
 ### Clinical Sidebar & Doctor Management Hub
 - **Dedicated Clinical Sidebar (`<AppShell />`)**: Replaced horizontal top navigation in the clinical workspace with a persistent, sleek 64-column clinical sidebar (`w-64 fixed inset-y-0`) and matching responsive mobile slide-out drawer. Features ClearNote stethoscope brand header with `HIPAA BAA Protected` assurance badge, clinician quick actions ("Start Recording `R`", "+ Register Patient `N`"), structured navigation groups ("Clinical Workspace": Dashboard, All Patients, SOAPs & Consultations; "Practice Management": Profile & Signature; "Clinical Search": Command Palette `⌘K`), and a docked attending clinician profile card with one-click theme switcher and Clerk sign out. Main content area updated with accessible `#main-content` landmark and offset (`lg:pl-64`).
 - **All Patients Directory & Medical Records (`/dashboard/patients`)**: Built a dedicated doctor management page for searching, filtering, and organizing patient health records. Features real-time multi-field search (name, MRN, phone, email), HIPAA recording consent filter chips (`All`, `Consented`, `Pending Consent`), dense mode toggle for high-throughput clinic days, tabular overview with mobile stacked card patterns, and direct "+ Register Patient" modal integration.
