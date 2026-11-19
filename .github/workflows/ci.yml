@@ -14,32 +14,26 @@ jobs:
     name: "Frontend — Lint, Typecheck & Audit"
     runs-on: ubuntu-22.04
     steps:
-      # Checkout the repository code
       - uses: actions/checkout@v4
 
-      # Setup Node.js with npm cache
       - uses: actions/setup-node@v4
         with:
           node-version: "20"
           cache: "npm"
           cache-dependency-path: "./frontend/package-lock.json"
 
-      # Install frontend dependencies
       - name: Install dependencies
         run: npm ci
         working-directory: ./frontend
 
-      # Run ESLint
       - name: Run ESLint
         run: npm run lint
         working-directory: ./frontend
 
-      # Run TypeScript type check
       - name: Run TypeScript type check
         run: npx tsc --noEmit
         working-directory: ./frontend
 
-      # Audit npm dependencies for vulnerabilities
       - name: Audit npm dependencies
         run: npm audit --audit-level=high
         working-directory: ./frontend
@@ -50,40 +44,82 @@ jobs:
     name: "Backend — Syntax Check & Audit"
     runs-on: ubuntu-22.04
     steps:
-      # Checkout the repository code
       - uses: actions/checkout@v4
 
-      # Setup Python with pip cache
       - uses: actions/setup-python@v5
         with:
           python-version: "3.12"
           cache: "pip"
 
-      # Install uv so the lockfile can be exported to requirements.txt
       - name: Install uv
         run: python -m pip install uv
         working-directory: ./backend
 
-      # Export locked backend dependencies from uv.lock
       - name: Export backend requirements
         run: uv export --frozen --no-dev --format requirements.txt --output-file requirements.txt
         working-directory: ./backend
 
-      # Install backend dependencies
       - name: Install dependencies
         run: pip install -r requirements.txt
         working-directory: ./backend
 
-      # Install pip-audit for vulnerability scanning
       - name: Install pip-audit
         run: pip install pip-audit
 
-      # Audit pip dependencies for vulnerabilities
       - name: Audit pip dependencies
         run: pip-audit
         continue-on-error: true
 
-      # Check Python files for syntax errors
       - name: Check Python syntax
         run: find . -name "*.py" -not -path "./.venv/*" | xargs python3 -m py_compile && echo "All Python files passed syntax check"
         working-directory: ./backend
+
+  # Automated test suite with pgvector service container (TICKET-16)
+  backend-tests:
+    name: "Backend — Automated Tests & pgvector"
+    runs-on: ubuntu-22.04
+    services:
+      postgres:
+        image: pgvector/pgvector:pg16
+        env:
+          POSTGRES_USER: clearnote
+          POSTGRES_PASSWORD: clearnote_test_password
+          POSTGRES_DB: clearnote_test
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install uv
+        run: curl -LsSf https://astral.sh/uv/install.sh | sh
+
+      - name: Install dependencies
+        run: uv sync --all-groups
+        working-directory: ./backend
+
+      - name: Run Pytest Test Suite
+        run: uv run pytest tests
+        working-directory: ./backend
+        env:
+          DATABASE_URL: postgresql+asyncpg://clearnote:clearnote_test_password@localhost:5432/clearnote_test
+          CLERK_SECRET_KEY: test_clerk_secret_key
+          CLERK_PUBLISHABLE_KEY: test_clerk_publishable_key
+          AWS_ACCESS_KEY_ID: test_aws_access_key
+          AWS_SECRET_ACCESS_KEY: test_aws_secret_key
+          AUDIO_BUCKET_NAME: test-audio-bucket
+          PDF_BUCKET_NAME: test-pdf-bucket
+          DEEPGRAM_API_KEY: test_deepgram_key
+          GROQ_API_KEY: test_groq_key
+          UPSTASH_REDIS_REST_URL: https://test-redis.upstash.io
+          UPSTASH_REDIS_REST_TOKEN: test_redis_token
+          PRESCRIPTION_SECRET_KEY: test_prescription_secret_key_12345

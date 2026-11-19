@@ -8,7 +8,6 @@ import {
   Pill,
   Stethoscope,
   AlertCircle,
-  FileText,
   FileDown,
   CheckCircle2,
   Edit2,
@@ -20,8 +19,10 @@ import {
   Share2,
   Copy,
   Check,
+  FileAudio,
 } from "lucide-react";
 import { useConsultation } from "@/features/consultations/api/useConsultation";
+import { useConsultationAudio } from "@/features/consultations/api/useConsultationAudio";
 import {
   useGeneratePrescription,
   usePrescription,
@@ -31,11 +32,13 @@ import {
   useApproveConsultation,
   ConsultationUpdatePayload,
 } from "@/features/consultations/api/useUpdateConsultation";
+import { ClinicalAudioPlayer } from "@/features/consultations/components/ClinicalAudioPlayer";
+import { SoapNoteEditor } from "@/features/consultations/components/SoapNoteEditor";
+import { DrugInteractionBanner } from "@/features/consultations/components/DrugInteractionBanner";
 import type { Diagnosis, Medication } from "@/features/consultations/types";
 import { formatDate } from "@/lib/utils";
 import { toast } from "sonner";
 
-// Define the exact item types expected in the update payload to avoid 'any'
 type EditDiag = NonNullable<ConsultationUpdatePayload["diagnoses"]>[0];
 type EditMed = NonNullable<ConsultationUpdatePayload["medications"]>[0];
 
@@ -44,6 +47,9 @@ export default function ConsultationReviewPage() {
   const router = useRouter();
 
   const { data: consultation, isLoading, isError, error } = useConsultation(id);
+  const { data: audioData } = useConsultationAudio(
+    consultation?.audio_s3_key ? id : null,
+  );
   const { data: prescription, refetch: refetchPrescription } = usePrescription(
     consultation?.status === "COMPLETE" ? id : null,
   );
@@ -55,18 +61,24 @@ export default function ConsultationReviewPage() {
   const [isEditing, setIsEditing] = useState(false);
   const [isShareModalOpen, setIsShareModalOpen] = useState(false);
   const [isCopied, setIsCopied] = useState(false);
+  const [isCriticalAcked, setIsCriticalAcked] = useState(false);
   const [editData, setEditData] = useState<ConsultationUpdatePayload | null>(
     null,
   );
+
+  const hasCriticalInteractions =
+    consultation?.interactions?.some(
+      (i) => i.severity === "SEVERE" || i.severity === "CRITICAL",
+    ) ?? false;
 
   const handleEditStart = () => {
     setEditData({
       soap_note: consultation?.soap_note
         ? {
-            subjective: consultation.soap_note.subjective,
-            objective: consultation.soap_note.objective,
-            assessment: consultation.soap_note.assessment,
-            plan: consultation.soap_note.plan,
+            subjective: consultation.soap_note.subjective || "",
+            objective: consultation.soap_note.objective || "",
+            assessment: consultation.soap_note.assessment || "",
+            plan: consultation.soap_note.plan || "",
           }
         : { subjective: "", objective: "", assessment: "", plan: "" },
       medications: consultation?.medications
@@ -82,11 +94,9 @@ export default function ConsultationReviewPage() {
       await generateMutation.mutateAsync(id);
       refetchPrescription();
       toast.success("Prescription generated successfully!");
-    } catch (error) {
+    } catch (err) {
       const msg =
-        error instanceof Error
-          ? error.message
-          : "Failed to generate prescription.";
+        err instanceof Error ? err.message : "Failed to generate prescription.";
       toast.error(msg);
     }
   };
@@ -100,15 +110,16 @@ export default function ConsultationReviewPage() {
         diagnoses: editData.diagnoses,
       });
       setIsEditing(false);
+      toast.success("Clinical note updated successfully.");
     } catch {
-      // Error toast is already fired by useUpdateConsultation's onError
+      // Toast fired by mutation onError
     }
   };
 
   if (isLoading) {
     return (
       <div className="min-h-screen bg-slate-50 flex items-center justify-center">
-        <Loader2 className="w-6 h-6 animate-spin text-teal-600" />
+        <Loader2 className="w-8 h-8 animate-spin text-teal-600" />
       </div>
     );
   }
@@ -121,8 +132,8 @@ export default function ConsultationReviewPage() {
       : "Consultation not found.";
     return (
       <div className="min-h-screen bg-slate-50 flex flex-col items-center justify-center">
-        <AlertCircle className="w-8 h-8 text-red-500 mb-3" />
-        <p className="text-red-500 font-semibold">{message}</p>
+        <AlertCircle className="w-8 h-8 text-rose-500 mb-3" />
+        <p className="text-rose-600 font-semibold">{message}</p>
         <button
           onClick={() => router.back()}
           className="mt-4 text-sm text-teal-600 hover:underline"
@@ -133,32 +144,47 @@ export default function ConsultationReviewPage() {
     );
   }
 
-  const { soap_note, medications, diagnoses } = consultation;
+  const { soap_note, medications, diagnoses, interactions } = consultation;
+  const isVerified =
+    consultation.status === "COMPLETE" ||
+    Boolean(soap_note?.edited_by_doctor);
+
+  const canApprove =
+    consultation.status === "AWAITING_REVIEW" &&
+    (!hasCriticalInteractions || isCriticalAcked);
 
   return (
     <div className="min-h-screen bg-slate-50 text-slate-900 selection:bg-teal-500/30">
-      {/* Header */}
-      <header className="sticky top-0 z-40 bg-white/80 backdrop-blur-md border-b border-slate-200">
-        <div className="mx-auto max-w-screen-2xl px-6 py-4 flex items-center justify-between">
+      {/* Top Bar / Review Header */}
+      <header className="sticky top-0 z-40 bg-white/90 backdrop-blur-md border-b border-slate-200">
+        <div className="mx-auto max-w-7xl px-6 py-4 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
           <div className="flex items-center gap-3">
             <button
               onClick={() => router.back()}
               className="p-2 rounded-xl hover:bg-slate-100 text-slate-500 hover:text-slate-900 transition-colors"
+              aria-label="Back to consultations"
             >
               <ArrowLeft className="w-5 h-5" />
             </button>
             <div>
-              <p className="text-xs text-slate-400 font-medium">
-                Consultation Review
-              </p>
-              <h1 className="text-base font-bold text-slate-900 leading-tight">
+              <div className="flex items-center gap-2">
+                <p className="text-xs text-slate-400 font-medium">
+                  Clinical Encounter Review
+                </p>
+                <span className="text-slate-300">•</span>
+                <span className="text-xs font-mono text-slate-500">
+                  {id.slice(0, 8)}
+                </span>
+              </div>
+              <h1 className="text-lg font-bold text-slate-900 leading-tight">
                 {formatDate(consultation.created_at)}
               </h1>
             </div>
           </div>
-          <div className="flex items-center gap-4">
+
+          <div className="flex items-center gap-3 flex-wrap">
             <span
-              className={`px-3 py-1.5 rounded-full text-xs font-bold tracking-wide uppercase border ${
+              className={`px-3 py-1 rounded-full text-xs font-bold tracking-wide uppercase border ${
                 consultation.status === "COMPLETE"
                   ? "bg-emerald-50 text-emerald-700 border-emerald-200"
                   : consultation.status === "AWAITING_REVIEW"
@@ -166,23 +192,26 @@ export default function ConsultationReviewPage() {
                   : "bg-slate-100 text-slate-700 border-slate-200"
               }`}
             >
-              {consultation.status === "AWAITING_REVIEW" ? "Awaiting Review" : consultation.status}
+              {consultation.status === "AWAITING_REVIEW"
+                ? "Awaiting Clinician Review"
+                : consultation.status}
             </span>
 
-            {(consultation.status === "COMPLETE" || consultation.status === "AWAITING_REVIEW") && (
+            {(consultation.status === "COMPLETE" ||
+              consultation.status === "AWAITING_REVIEW") && (
               <>
                 {isEditing ? (
                   <div className="flex items-center gap-2">
                     <button
                       onClick={() => setIsEditing(false)}
-                      className="inline-flex items-center gap-2 px-4 py-2 bg-slate-100 text-slate-700 rounded-xl font-semibold text-sm hover:bg-slate-200 transition-colors"
+                      className="inline-flex items-center gap-2 px-3.5 py-2 bg-slate-100 text-slate-700 rounded-xl font-semibold text-xs hover:bg-slate-200 transition-colors"
                     >
                       <X className="w-4 h-4" /> Cancel
                     </button>
                     <button
                       onClick={handleSave}
                       disabled={updateMutation.isPending}
-                      className="inline-flex items-center gap-2 px-4 py-2 bg-teal-600 text-white rounded-xl font-semibold text-sm hover:bg-teal-700 transition-colors disabled:opacity-50"
+                      className="inline-flex items-center gap-2 px-4 py-2 bg-teal-600 text-white rounded-xl font-semibold text-xs hover:bg-teal-700 transition-colors disabled:opacity-50"
                     >
                       {updateMutation.isPending ? (
                         <Loader2 className="w-4 h-4 animate-spin" />
@@ -196,15 +225,21 @@ export default function ConsultationReviewPage() {
                   <div className="flex items-center gap-2">
                     <button
                       onClick={handleEditStart}
-                      className="inline-flex items-center gap-2 px-4 py-2 bg-indigo-50 text-indigo-700 rounded-xl font-semibold text-sm hover:bg-indigo-100 transition-colors border border-indigo-200"
+                      className="inline-flex items-center gap-2 px-3.5 py-2 bg-indigo-50 text-indigo-700 rounded-xl font-semibold text-xs hover:bg-indigo-100 transition-colors border border-indigo-200"
                     >
-                      <Edit2 className="w-4 h-4" /> Edit
+                      <Edit2 className="w-3.5 h-3.5" /> Edit Documentation
                     </button>
+
                     {consultation.status === "AWAITING_REVIEW" && (
                       <button
                         onClick={() => approveMutation.mutate()}
-                        disabled={approveMutation.isPending}
-                        className="inline-flex items-center gap-2 px-4 py-2 bg-emerald-600 text-white rounded-xl font-semibold text-sm hover:bg-emerald-700 transition-colors shadow-sm disabled:opacity-50"
+                        disabled={approveMutation.isPending || !canApprove}
+                        title={
+                          !canApprove
+                            ? "Acknowledge critical drug interactions before sign-off"
+                            : "Approve SOAP note & unlock prescription"
+                        }
+                        className="inline-flex items-center gap-2 px-4 py-2 bg-emerald-600 text-white rounded-xl font-semibold text-xs hover:bg-emerald-700 transition-colors shadow-sm disabled:opacity-40 disabled:cursor-not-allowed"
                       >
                         {approveMutation.isPending ? (
                           <Loader2 className="w-4 h-4 animate-spin" />
@@ -218,44 +253,44 @@ export default function ConsultationReviewPage() {
                 )}
 
                 {!isEditing &&
+                  consultation.status === "COMPLETE" &&
                   (prescription?.url ? (
                     <div className="flex items-center gap-2">
                       <a
                         href={prescription.url}
                         target="_blank"
                         rel="noopener noreferrer"
-                        className="inline-flex items-center gap-2 px-4 py-2 bg-teal-50 text-teal-700 rounded-xl font-semibold text-sm hover:bg-teal-100 transition-colors border border-teal-200"
+                        className="inline-flex items-center gap-2 px-3.5 py-2 bg-teal-50 text-teal-700 rounded-xl font-semibold text-xs hover:bg-teal-100 transition-colors border border-teal-200"
                       >
-                        <CheckCircle2 className="w-4 h-4" />
+                        <CheckCircle2 className="w-3.5 h-3.5" />
                         View Prescription
                       </a>
                       <button
                         onClick={handleGeneratePrescription}
                         disabled={generateMutation.isPending}
-                        className="inline-flex items-center gap-2 px-4 py-2 bg-white text-slate-700 rounded-xl font-semibold text-sm hover:bg-slate-50 transition-colors border border-slate-200 disabled:opacity-50"
+                        className="inline-flex items-center gap-2 px-3.5 py-2 bg-white text-slate-700 rounded-xl font-semibold text-xs hover:bg-slate-50 transition-colors border border-slate-200 disabled:opacity-50"
                         title="Regenerate prescription with latest edits"
                       >
                         {generateMutation.isPending ? (
-                          <Loader2 className="w-4 h-4 animate-spin" />
+                          <Loader2 className="w-3.5 h-3.5 animate-spin" />
                         ) : (
-                          <RefreshCw className="w-4 h-4" />
+                          <RefreshCw className="w-3.5 h-3.5" />
                         )}
-                        Update Prescription
+                        Update
                       </button>
                       <button
                         onClick={() => setIsShareModalOpen(true)}
-                        className="inline-flex items-center gap-2 px-4 py-2 bg-indigo-50 text-indigo-700 rounded-xl font-semibold text-sm hover:bg-indigo-100 transition-colors border border-indigo-200"
-                        title="Share prescription via a unique link"
+                        className="inline-flex items-center gap-2 px-3.5 py-2 bg-indigo-50 text-indigo-700 rounded-xl font-semibold text-xs hover:bg-indigo-100 transition-colors border border-indigo-200"
                       >
-                        <Share2 className="w-4 h-4" />
-                        Share Prescription
+                        <Share2 className="w-3.5 h-3.5" />
+                        Share
                       </button>
                     </div>
                   ) : (
                     <button
                       onClick={handleGeneratePrescription}
                       disabled={generateMutation.isPending}
-                      className="inline-flex items-center gap-2 px-4 py-2 bg-teal-600 text-white rounded-xl font-semibold text-sm hover:bg-teal-700 transition-colors disabled:opacity-50"
+                      className="inline-flex items-center gap-2 px-4 py-2 bg-teal-600 text-white rounded-xl font-semibold text-xs hover:bg-teal-700 transition-colors disabled:opacity-50"
                     >
                       {generateMutation.isPending ? (
                         <Loader2 className="w-4 h-4 animate-spin" />
@@ -271,153 +306,60 @@ export default function ConsultationReviewPage() {
         </div>
       </header>
 
-      <main className="mx-auto max-w-screen-2xl px-6 py-10">
-        <div className="grid grid-cols-1 lg:grid-cols-12 gap-8">
-          {/* Left Column: Medications & Diagnoses (lg:col-span-3) */}
-          <div className="lg:col-span-3 space-y-6">
-            {/* Medications */}
-            <div className="bg-white border border-slate-200 rounded-3xl p-6 shadow-sm">
-              <div className="flex items-center justify-between mb-4">
-                <h2 className="text-base font-bold text-slate-900 flex items-center gap-2">
-                  <Pill className="w-5 h-5 text-rose-500" />
-                  Medications
+      {/* Main Split-Screen Reviewer */}
+      <main className="mx-auto max-w-7xl px-6 py-8">
+        <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 items-start">
+          {/* Left Pane (5 cols): Audio Player + Raw Transcript + Clinical Signals */}
+          <div className="lg:col-span-5 space-y-6 lg:sticky lg:top-24">
+            {/* Audio Recording & Waveform Card */}
+            <div className="bg-white border border-slate-200 rounded-3xl p-6 shadow-sm space-y-4">
+              <div className="flex items-center justify-between">
+                <h2 className="text-sm font-bold text-slate-900 flex items-center gap-2">
+                  <FileAudio className="w-4 h-4 text-teal-600" />
+                  Clinical Audio Recording
                 </h2>
-                {isEditing && (
-                  <button
-                    onClick={() => {
-                      if (!editData) return;
-                      setEditData({
-                        ...editData,
-                        medications: [
-                          ...(editData.medications || []),
-                          { name: "", dosage: "", frequency: "", duration: "" },
-                        ],
-                      });
-                    }}
-                    className="p-1.5 bg-rose-50 text-rose-600 hover:bg-rose-100 rounded-lg transition-colors"
-                  >
-                    <Plus className="w-4 h-4" />
-                  </button>
+                {consultation.duration_seconds && (
+                  <span className="text-xs font-mono text-slate-500">
+                    {Math.floor(consultation.duration_seconds / 60)}m{" "}
+                    {consultation.duration_seconds % 60}s
+                  </span>
                 )}
               </div>
 
-              {!isEditing ? (
-                medications && medications.length > 0 ? (
-                  <ul className="space-y-3">
-                    {medications.map((m: Medication) => (
-                      <li
-                        key={m.id}
-                        className="p-3 bg-rose-50/50 rounded-xl border border-rose-100/50"
-                      >
-                        <p className="text-sm font-bold text-slate-800 mb-1">
-                          {m.name}
-                        </p>
-                        <div className="flex flex-wrap gap-2 text-xs text-slate-600">
-                          {m.dosage && <span>{m.dosage}</span>}
-                          {m.frequency && <span>• {m.frequency}</span>}
-                          {m.duration && <span>• {m.duration}</span>}
-                        </div>
-                      </li>
-                    ))}
-                  </ul>
-                ) : (
-                  <p className="text-sm text-slate-500 italic">
-                    No medications extracted.
-                  </p>
-                )
+              {audioData?.url ? (
+                <ClinicalAudioPlayer audioUrl={audioData.url} />
               ) : (
-                <ul className="space-y-3">
-                  {editData?.medications?.map((m: EditMed, index: number) => (
-                    <li
-                      key={index}
-                      className="p-3 bg-white rounded-xl border border-slate-200 relative group"
-                    >
-                      <button
-                        onClick={() => {
-                          if (!editData || !editData.medications) return;
-                          const newMeds = [...editData.medications];
-                          newMeds.splice(index, 1);
-                          setEditData({ ...editData, medications: newMeds });
-                        }}
-                        className="absolute top-2 right-2 p-1 text-slate-400 hover:text-red-500 rounded bg-slate-50 hover:bg-red-50"
-                      >
-                        <Trash2 className="w-3.5 h-3.5" />
-                      </button>
-                      <input
-                        placeholder="Medication Name"
-                        value={m.name || ""}
-                        onChange={(e) => {
-                          if (!editData || !editData.medications) return;
-                          const newMeds = [...editData.medications];
-                          newMeds[index] = {
-                            ...newMeds[index],
-                            name: e.target.value,
-                          };
-                          setEditData({ ...editData, medications: newMeds });
-                        }}
-                        className="w-full mb-2 p-1.5 pr-8 text-sm font-bold bg-slate-50 border border-slate-200 rounded"
-                      />
-                      <div className="grid grid-cols-2 gap-2">
-                        <input
-                          placeholder="Dosage"
-                          value={m.dosage || ""}
-                          onChange={(e) => {
-                            if (!editData || !editData.medications) return;
-                            const newMeds = [...editData.medications];
-                            newMeds[index] = {
-                              ...newMeds[index],
-                              dosage: e.target.value,
-                            };
-                            setEditData({ ...editData, medications: newMeds });
-                          }}
-                          className="w-full p-1.5 text-xs bg-slate-50 border border-slate-200 rounded"
-                        />
-                        <input
-                          placeholder="Frequency"
-                          value={m.frequency || ""}
-                          onChange={(e) => {
-                            if (!editData || !editData.medications) return;
-                            const newMeds = [...editData.medications];
-                            newMeds[index] = {
-                              ...newMeds[index],
-                              frequency: e.target.value,
-                            };
-                            setEditData({ ...editData, medications: newMeds });
-                          }}
-                          className="w-full p-1.5 text-xs bg-slate-50 border border-slate-200 rounded"
-                        />
-                        <input
-                          placeholder="Duration"
-                          value={m.duration || ""}
-                          onChange={(e) => {
-                            if (!editData || !editData.medications) return;
-                            const newMeds = [...editData.medications];
-                            newMeds[index] = {
-                              ...newMeds[index],
-                              duration: e.target.value,
-                            };
-                            setEditData({ ...editData, medications: newMeds });
-                          }}
-                          className="w-full p-1.5 text-xs bg-slate-50 border border-slate-200 rounded col-span-2"
-                        />
-                      </div>
-                    </li>
-                  ))}
-                  {editData?.medications?.length === 0 && (
-                    <p className="text-sm text-slate-500 italic">
-                      No medications.
-                    </p>
-                  )}
-                </ul>
+                <div className="p-4 rounded-2xl bg-slate-50 border border-slate-200 text-xs text-slate-500 text-center">
+                  Audio playback URL not generated or expired.
+                </div>
               )}
             </div>
 
-            {/* Diagnoses */}
+            {/* Verbatim Transcript */}
+            <div className="bg-white border border-slate-200 rounded-3xl p-6 shadow-sm space-y-3">
+              <div className="flex items-center justify-between">
+                <h3 className="text-sm font-bold text-slate-900">
+                  Verbatim Audio Transcript
+                </h3>
+                <span className="text-[11px] font-semibold text-slate-400 uppercase tracking-wider">
+                  Deepgram Nova-2
+                </span>
+              </div>
+              <div className="max-h-[420px] overflow-y-auto p-4 rounded-2xl bg-slate-50/70 border border-slate-100 text-xs text-slate-700 leading-relaxed whitespace-pre-wrap font-sans">
+                {soap_note?.raw_transcript || (
+                  <span className="italic text-slate-400">
+                    No transcript available for this encounter.
+                  </span>
+                )}
+              </div>
+            </div>
+
+            {/* Extracted Diagnoses */}
             <div className="bg-white border border-slate-200 rounded-3xl p-6 shadow-sm">
               <div className="flex items-center justify-between mb-4">
-                <h2 className="text-base font-bold text-slate-900 flex items-center gap-2">
-                  <Stethoscope className="w-5 h-5 text-indigo-500" />
-                  Diagnoses
+                <h2 className="text-sm font-bold text-slate-900 flex items-center gap-2">
+                  <Stethoscope className="w-4 h-4 text-indigo-500" />
+                  Diagnoses & ICD Codes
                 </h2>
                 {isEditing && (
                   <button
@@ -433,32 +375,32 @@ export default function ConsultationReviewPage() {
                     }}
                     className="p-1.5 bg-indigo-50 text-indigo-600 hover:bg-indigo-100 rounded-lg transition-colors"
                   >
-                    <Plus className="w-4 h-4" />
+                    <Plus className="w-3.5 h-3.5" />
                   </button>
                 )}
               </div>
 
               {!isEditing ? (
                 diagnoses && diagnoses.length > 0 ? (
-                  <ul className="space-y-3">
+                  <ul className="space-y-2.5">
                     {diagnoses.map((d: Diagnosis) => (
                       <li
                         key={d.id}
-                        className="p-3 bg-indigo-50/50 rounded-xl border border-indigo-100/50"
+                        className="p-3 bg-indigo-50/40 rounded-xl border border-indigo-100/60"
                       >
                         <div className="flex items-center gap-2 mb-1">
-                          <span className="px-2 py-0.5 bg-indigo-100 text-indigo-700 rounded text-xs font-bold font-mono">
+                          <span className="px-2 py-0.5 bg-indigo-100 text-indigo-700 rounded text-[11px] font-bold font-mono">
                             {d.icd_code || "N/A"}
                           </span>
                         </div>
-                        <p className="text-sm text-slate-700 font-medium">
+                        <p className="text-xs text-slate-800 font-medium">
                           {d.description}
                         </p>
                       </li>
                     ))}
                   </ul>
                 ) : (
-                  <p className="text-sm text-slate-500 italic">
+                  <p className="text-xs text-slate-400 italic">
                     No diagnoses extracted.
                   </p>
                 )
@@ -467,7 +409,7 @@ export default function ConsultationReviewPage() {
                   {editData?.diagnoses?.map((d: EditDiag, index: number) => (
                     <li
                       key={index}
-                      className="p-3 bg-white rounded-xl border border-slate-200 relative group"
+                      className="p-3 bg-slate-50 rounded-xl border border-slate-200 relative group"
                     >
                       <button
                         onClick={() => {
@@ -476,12 +418,12 @@ export default function ConsultationReviewPage() {
                           newDiags.splice(index, 1);
                           setEditData({ ...editData, diagnoses: newDiags });
                         }}
-                        className="absolute top-2 right-2 p-1 text-slate-400 hover:text-red-500 rounded bg-slate-50 hover:bg-red-50"
+                        className="absolute top-2 right-2 p-1 text-slate-400 hover:text-red-500 rounded hover:bg-red-50"
                       >
-                        <Trash2 className="w-3.5 h-3.5" />
+                        <Trash2 className="w-3 h-3" />
                       </button>
                       <input
-                        placeholder="ICD Code"
+                        placeholder="ICD Code (e.g. J20.9)"
                         value={d.icd_code || ""}
                         onChange={(e) => {
                           if (!editData || !editData.diagnoses) return;
@@ -492,7 +434,7 @@ export default function ConsultationReviewPage() {
                           };
                           setEditData({ ...editData, diagnoses: newDiags });
                         }}
-                        className="w-full mb-2 p-1.5 text-xs font-mono bg-slate-50 border border-slate-200 rounded"
+                        className="w-full mb-2 p-1.5 text-xs font-mono bg-white border border-slate-200 rounded"
                       />
                       <input
                         placeholder="Description"
@@ -506,172 +448,196 @@ export default function ConsultationReviewPage() {
                           };
                           setEditData({ ...editData, diagnoses: newDiags });
                         }}
-                        className="w-full p-1.5 text-sm bg-slate-50 border border-slate-200 rounded"
+                        className="w-full p-1.5 text-xs bg-white border border-slate-200 rounded"
                       />
                     </li>
                   ))}
-                  {editData?.diagnoses?.length === 0 && (
-                    <p className="text-sm text-slate-500 italic">
-                      No diagnoses.
-                    </p>
-                  )}
                 </ul>
               )}
             </div>
           </div>
 
-          {/* Middle Column: SOAP Note (lg:col-span-4) */}
-          <div className="lg:col-span-4 space-y-6">
+          {/* Right Pane (7 cols): Drug Interaction Alert + SOAP Note + Medications */}
+          <div className="lg:col-span-7 space-y-6">
+            {/* Pharmacological Safety Alerts Banner */}
+            <DrugInteractionBanner
+              interactions={interactions || []}
+              onAcknowledgeAll={setIsCriticalAcked}
+            />
+
+            {/* Editable SOAP Clinical Note */}
             <div className="bg-white border border-slate-200 rounded-3xl p-6 shadow-sm">
-              <h2 className="text-lg font-bold text-slate-900 mb-6 flex items-center gap-2">
-                <FileText className="w-5 h-5 text-teal-600" />
-                SOAP Note
-              </h2>
-
-              {!soap_note && !isEditing ? (
-                <p className="text-sm text-slate-500 italic">
-                  No SOAP note available.
-                </p>
-              ) : (
-                <div className="space-y-6">
-                  {(
-                    ["subjective", "objective", "assessment", "plan"] as const
-                  ).map((field) => (
-                    <div key={field}>
-                      <h3 className="text-sm font-semibold text-slate-700 mb-2 uppercase tracking-wider">
-                        {field}
-                      </h3>
-                      {isEditing ? (
-                        <textarea
-                          value={editData?.soap_note?.[field] || ""}
-                          onChange={(e) => {
-                            if (!editData) return;
-                            setEditData({
-                              ...editData,
-                              soap_note: {
-                                ...editData.soap_note,
-                                [field]: e.target.value,
-                              },
-                            });
-                          }}
-                          className="w-full p-4 bg-white rounded-xl border border-slate-300 text-slate-900 text-sm whitespace-pre-wrap leading-relaxed focus:outline-none focus:ring-2 focus:ring-teal-500 min-h-[100px]"
-                        />
-                      ) : (
-                        <div className="p-4 bg-slate-50 rounded-xl border border-slate-100 text-slate-700 text-sm whitespace-pre-wrap leading-relaxed">
-                          {(
-                            soap_note as unknown as Record<
-                              string,
-                              string | null
-                            >
-                          )?.[field] || "—"}
-                        </div>
-                      )}
-                    </div>
-                  ))}
-
-                  <div className="mt-8 pt-6 border-t border-slate-100">
-                    <h3 className="text-sm font-semibold text-slate-700 mb-3">
-                      Raw Transcript
-                    </h3>
-                    <details className="text-sm text-slate-600 bg-slate-50 p-4 rounded-xl border border-slate-100 cursor-pointer">
-                      <summary className="font-medium outline-none">
-                        View full audio transcript
-                      </summary>
-                      <div className="mt-3 pt-3 border-t border-slate-200 text-slate-500 whitespace-pre-wrap leading-relaxed">
-                        {soap_note?.raw_transcript}
-                      </div>
-                    </details>
-                  </div>
-                </div>
-              )}
+              <SoapNoteEditor
+                soapNote={soap_note}
+                isEditing={isEditing}
+                isVerified={isVerified}
+                values={{
+                  subjective:
+                    (isEditing
+                      ? editData?.soap_note?.subjective
+                      : soap_note?.subjective) || "",
+                  objective:
+                    (isEditing
+                      ? editData?.soap_note?.objective
+                      : soap_note?.objective) || "",
+                  assessment:
+                    (isEditing
+                      ? editData?.soap_note?.assessment
+                      : soap_note?.assessment) || "",
+                  plan:
+                    (isEditing
+                      ? editData?.soap_note?.plan
+                      : soap_note?.plan) || "",
+                }}
+                onChange={(field, value) => {
+                  if (!editData) return;
+                  setEditData({
+                    ...editData,
+                    soap_note: {
+                      ...editData.soap_note,
+                      [field]: value,
+                    },
+                  });
+                }}
+              />
             </div>
-          </div>
 
-          {/* Right Column: Drug Interactions (lg:col-span-5 - much wider) */}
-          <div className="lg:col-span-5 space-y-6">
-            {/* Drug Interactions */}
+            {/* Extracted Prescribed Medications */}
             <div className="bg-white border border-slate-200 rounded-3xl p-6 shadow-sm">
               <div className="flex items-center justify-between mb-4">
-                <h2 className="text-base font-bold text-slate-900 flex items-center gap-2">
-                  <AlertCircle className="w-5 h-5 text-amber-500" />
-                  Drug Interactions
+                <h2 className="text-sm font-bold text-slate-900 flex items-center gap-2">
+                  <Pill className="w-4 h-4 text-rose-500" />
+                  Prescribed Regimen & Dosing
                 </h2>
+                {isEditing && (
+                  <button
+                    onClick={() => {
+                      if (!editData) return;
+                      setEditData({
+                        ...editData,
+                        medications: [
+                          ...(editData.medications || []),
+                          { name: "", dosage: "", frequency: "", duration: "" },
+                        ],
+                      });
+                    }}
+                    className="p-1.5 bg-rose-50 text-rose-600 hover:bg-rose-100 rounded-lg transition-colors"
+                  >
+                    <Plus className="w-3.5 h-3.5" />
+                  </button>
+                )}
               </div>
 
-              {consultation.interactions &&
-              consultation.interactions.length > 0 ? (
-                <ul className="space-y-4">
-                  {consultation.interactions.map((interaction) => {
-                    const isSevere = interaction.severity === "SEVERE";
-                    const isMod = interaction.severity === "MODERATE";
-                    const isMild = interaction.severity === "MILD";
-                    const badgeBg = isSevere
-                      ? "bg-red-100 text-red-700 border-red-200"
-                      : isMod
-                        ? "bg-amber-100 text-amber-700 border-amber-200"
-                        : isMild
-                          ? "bg-yellow-100 text-yellow-700 border-yellow-200"
-                          : "bg-slate-100 text-slate-700 border-slate-200";
-
-                    return (
-                      <li
-                        key={interaction.id}
-                        className="p-5 bg-slate-50 rounded-2xl border border-slate-100 space-y-3"
+              {!isEditing ? (
+                medications && medications.length > 0 ? (
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                    {medications.map((m: Medication) => (
+                      <div
+                        key={m.id}
+                        className="p-3.5 bg-rose-50/40 rounded-xl border border-rose-100/60"
                       >
-                        <div className="flex items-center justify-between">
-                          <span className="text-base font-bold text-slate-800">
-                            {interaction.drug_a} & {interaction.drug_b}
-                          </span>
-                          <span
-                            className={`px-3 py-1 rounded-full text-xs font-bold border ${badgeBg}`}
-                          >
-                            {interaction.severity}
-                          </span>
+                        <p className="text-xs font-bold text-slate-900 mb-1">
+                          {m.name}
+                        </p>
+                        <div className="flex flex-wrap gap-x-2 gap-y-0.5 text-[11px] text-slate-600">
+                          {m.dosage && <span>{m.dosage}</span>}
+                          {m.frequency && <span>• {m.frequency}</span>}
+                          {m.duration && <span>• {m.duration}</span>}
                         </div>
-
-                        {interaction.mechanism && (
-                          <p className="text-xs text-slate-600 leading-relaxed">
-                            <strong className="text-slate-700">
-                              Mechanism:
-                            </strong>{" "}
-                            {interaction.mechanism}
-                          </p>
-                        )}
-
-                        {interaction.recommendation && (
-                          <p className="text-xs text-slate-600 leading-relaxed">
-                            <strong className="text-slate-700">Action:</strong>{" "}
-                            {interaction.recommendation}
-                          </p>
-                        )}
-
-                        {interaction.guideline_ref && (
-                          <div className="pt-3 border-t border-slate-200 flex items-center justify-between text-[11px] text-slate-500">
-                            <span className="font-medium">
-                              📖 {interaction.guideline_ref}
-                            </span>
-                            {interaction.confidence != null && (
-                              <span className="font-semibold bg-slate-200/60 px-2 py-0.5 rounded">
-                                Conf: {Math.round(interaction.confidence * 100)}
-                                %
-                              </span>
-                            )}
-                          </div>
-                        )}
-                      </li>
-                    );
-                  })}
-                </ul>
+                      </div>
+                    ))}
+                  </div>
+                ) : (
+                  <p className="text-xs text-slate-400 italic">
+                    No medications prescribed.
+                  </p>
+                )
               ) : (
-                <p className="text-sm text-slate-500 italic">
-                  No significant drug interactions detected.
-                </p>
+                <div className="space-y-3">
+                  {editData?.medications?.map((m: EditMed, index: number) => (
+                    <div
+                      key={index}
+                      className="p-3.5 bg-slate-50 rounded-xl border border-slate-200 relative group"
+                    >
+                      <button
+                        onClick={() => {
+                          if (!editData || !editData.medications) return;
+                          const newMeds = [...editData.medications];
+                          newMeds.splice(index, 1);
+                          setEditData({ ...editData, medications: newMeds });
+                        }}
+                        className="absolute top-2 right-2 p-1 text-slate-400 hover:text-red-500 rounded hover:bg-red-50"
+                      >
+                        <Trash2 className="w-3 h-3" />
+                      </button>
+                      <input
+                        placeholder="Medication Name"
+                        value={m.name || ""}
+                        onChange={(e) => {
+                          if (!editData || !editData.medications) return;
+                          const newMeds = [...editData.medications];
+                          newMeds[index] = {
+                            ...newMeds[index],
+                            name: e.target.value,
+                          };
+                          setEditData({ ...editData, medications: newMeds });
+                        }}
+                        className="w-full mb-2 p-1.5 pr-8 text-xs font-bold bg-white border border-slate-200 rounded"
+                      />
+                      <div className="grid grid-cols-3 gap-2">
+                        <input
+                          placeholder="Dosage"
+                          value={m.dosage || ""}
+                          onChange={(e) => {
+                            if (!editData || !editData.medications) return;
+                            const newMeds = [...editData.medications];
+                            newMeds[index] = {
+                              ...newMeds[index],
+                              dosage: e.target.value,
+                            };
+                            setEditData({ ...editData, medications: newMeds });
+                          }}
+                          className="w-full p-1.5 text-xs bg-white border border-slate-200 rounded"
+                        />
+                        <input
+                          placeholder="Frequency"
+                          value={m.frequency || ""}
+                          onChange={(e) => {
+                            if (!editData || !editData.medications) return;
+                            const newMeds = [...editData.medications];
+                            newMeds[index] = {
+                              ...newMeds[index],
+                              frequency: e.target.value,
+                            };
+                            setEditData({ ...editData, medications: newMeds });
+                          }}
+                          className="w-full p-1.5 text-xs bg-white border border-slate-200 rounded"
+                        />
+                        <input
+                          placeholder="Duration"
+                          value={m.duration || ""}
+                          onChange={(e) => {
+                            if (!editData || !editData.medications) return;
+                            const newMeds = [...editData.medications];
+                            newMeds[index] = {
+                              ...newMeds[index],
+                              duration: e.target.value,
+                            };
+                            setEditData({ ...editData, medications: newMeds });
+                          }}
+                          className="w-full p-1.5 text-xs bg-white border border-slate-200 rounded"
+                        />
+                      </div>
+                    </div>
+                  ))}
+                </div>
               )}
             </div>
           </div>
         </div>
       </main>
 
+      {/* Share Prescription Modal */}
       {isShareModalOpen && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/50 backdrop-blur-sm">
           <div className="bg-white rounded-2xl shadow-xl w-full max-w-md overflow-hidden animate-in fade-in zoom-in duration-200">
@@ -685,23 +651,33 @@ export default function ConsultationReviewPage() {
               </button>
             </div>
             <div className="p-6">
-              <p className="text-sm text-slate-600 mb-4 font-medium">
-                Copy unique link
+              <p className="text-xs text-slate-600 mb-4 font-medium">
+                Copy unique, tamper-proof prescription link:
               </p>
               <div className="flex items-center gap-2">
-                <div className="flex-1 px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-sm text-slate-600 font-mono truncate select-all" title={prescription?.share_url || `/consultations/public/${id}/prescription`}>
+                <div
+                  className="flex-1 px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs text-slate-600 font-mono truncate select-all"
+                  title={
+                    prescription?.share_url ||
+                    `/consultations/public/${id}/prescription`
+                  }
+                >
                   {prescription?.share_url || `Generating secure link...`}
                 </div>
                 <button
                   onClick={() => {
-                    const linkToCopy = prescription?.share_url || `${window.location.origin}/consultations/public/${id}/prescription`;
+                    const linkToCopy =
+                      prescription?.share_url ||
+                      `${window.location.origin}/consultations/public/${id}/prescription`;
                     navigator.clipboard.writeText(linkToCopy);
                     toast.success("Secure share link copied to clipboard!");
                     setIsCopied(true);
                     setTimeout(() => setIsCopied(false), 2000);
                   }}
-                  className={`px-4 py-2 text-white rounded-xl text-sm font-semibold transition-colors shrink-0 flex items-center gap-2 ${
-                    isCopied ? "bg-emerald-600 hover:bg-emerald-700" : "bg-slate-900 hover:bg-slate-800"
+                  className={`px-4 py-2 text-white rounded-xl text-xs font-semibold transition-colors shrink-0 flex items-center gap-2 ${
+                    isCopied
+                      ? "bg-emerald-600 hover:bg-emerald-700"
+                      : "bg-slate-900 hover:bg-slate-800"
                   }`}
                 >
                   {isCopied ? (

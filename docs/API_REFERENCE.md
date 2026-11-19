@@ -413,7 +413,20 @@ Every response includes:
   - `404 Not Found`: `{"message": "Consultation not found."}` or `{"message": "Prescription not generated yet."}`
   - `429 Too Many Requests`: Exceeded 10 requests/minute limit.
 
-### 5.9 Ingest Clinical Guidelines PDF (RAG Knowledge Base)
+### 5.10 Get Consultation Audio Recording URL
+- **Endpoint**: `GET /consultations/{consultation_id}/audio`
+- **Auth**: Required (`get_current_doctor`)
+- **Description**: Retrieves a temporary presigned AWS S3 URL for streaming the consultation audio recording.
+- **Response `200 OK`**:
+```json
+{
+  "url": "https://clearnote-audio-s3.s3.ap-south-1.amazonaws.com/audio/1b01c3c2-d352-4cf4-91bc-d18386f91cb1.webm?AWSAccessKeyId=..."
+}
+```
+- **Errors**:
+  - `404 Not Found`: `{"message": "Audio recording not found."}` or `{"message": "Consultation not found."}`
+
+### 5.11 Ingest Clinical Guidelines PDF (RAG Knowledge Base)
 - **Endpoint**: `POST /consultations/ingest-guidelines`
 - **Auth**: Required (`get_current_doctor`)
 - **Content-Type**: `multipart/form-data`

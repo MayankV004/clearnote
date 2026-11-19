@@ -325,3 +325,30 @@ async def get_prescription(
     }
 
 
+@router.get("/{consultation_id}/audio", response_model=dict)
+async def get_consultation_audio(
+    consultation_id: UUID,
+    doctor: Doctor = Depends(get_current_doctor),
+    db: AsyncSession = Depends(get_db),
+):
+    """
+    Get presigned URL for playback of consultation audio.
+    """
+    stmt = select(Consultation).where(Consultation.id == consultation_id, Consultation.doctor_id == doctor.id)
+    consultation = await db.scalar(stmt)
+    if not consultation:
+        raise ConsultationNotFoundException(str(consultation_id))
+
+    if not consultation.audio_s3_key:
+        return JSONResponse(status_code=404, content={"message": "Audio recording not found."})
+
+    presigned_url = await s3_service.generate_presigned_url(
+        consultation.audio_s3_key,
+        bucket_name=settings.AUDIO_BUCKET_NAME,
+    )
+    return {
+        "url": presigned_url
+    }
+
+
+

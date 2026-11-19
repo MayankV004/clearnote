@@ -5,6 +5,13 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
+### UI Overhaul & Clinical Reviewer (Phase 5)
+- **TICKET-12 (`FLOW-01`)**: Implemented dedicated split-screen clinical encounter reviewer in `frontend/src/app/(site)/dashboard/consultations/[id]/page.tsx`. Features synchronized audio playback (`<ClinicalAudioPlayer />`), verbatim transcript inspection, side-by-side editing of S, O, A, P fields with provenance tracking, and responsive medication/diagnosis management. Added backend `GET /consultations/{id}/audio` endpoint providing secure presigned S3 URLs for encounter audio recordings.
+- **TICKET-13 (Onboarding & Digital Signatures)**: Added digital signature capture canvas pad (`<SignatureCanvas />`) to Step 3 of doctor onboarding (`/onboarding`). Enables desktop mouse and mobile touch signature sketching with clear/reset controls and direct multipart upload to `POST /doctors/me/signature` and AWS S3 for inclusion on official prescriptions.
+- **TICKET-14 (`AI-02` / `AI-03`)**: Implemented `<DrugInteractionBanner />` and `<SoapNoteEditor />` with provenance badges (`[AI Draft]` vs `[Clinician Verified]`). Displays 3-tier severity cards (CRITICAL/SEVERE, MODERATE, MILD), pharmacological mechanisms, guideline citations, and confidence scores. Enforces mandatory acknowledgment of critical drug interactions before the "Approve & Sign Off" button is unlocked.
+- **TICKET-16 (`ENG-01`)**: Automated pgvector integration tests in GitHub Actions CI (`.github/workflows/ci.yml`). Spins up `pgvector/pgvector:pg16` container service with health checks, configures test secrets, and executes the complete backend `pytest` test suite on push and PR.
+- **TICKET-17 (`ENG-02` / `ENG-03`)**: Cleaned unreferenced dependencies (`google-genai`) from `backend/pyproject.toml` and regenerated `backend/uv.lock`. Moved `shadcn` to `devDependencies` in `frontend/package.json` for proper build boundary hygiene.
+
 ### Clinical Workflow & Edge Cases
 - **TICKET-15 (`FLOW-02`)**: Added pagination (`page`, `page_size`) and metadata headers (`X-Total-Count`, `X-Page`, `X-Page-Size`) to `GET /patients/` and `GET /consultations/`. Added responsive pagination controls to `PatientList` and `ConsultationList`.
 - **Flow Hardening (`APP-FLOW`)**: Added client-side network offline detection via `<OfflineBanner />` utilizing React 19 `useSyncExternalStore`, notifying clinicians immediately upon network loss to prevent unsaved edits. Handled expired Clerk sessions (401) with clean redirects to `/sign-in`.

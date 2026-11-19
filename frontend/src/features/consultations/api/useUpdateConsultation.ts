@@ -55,7 +55,7 @@ export function useApproveConsultation(consultationId: string) {
 
   return useMutation({
     mutationFn: () =>
-      api.post<Consultation>(`/consultations/${consultationId}/approve`),
+      api.post<Consultation>(`/consultations/${consultationId}/approve`, {}),
     onSuccess: (approved) => {
       queryClient.invalidateQueries({
         queryKey: ["consultation", consultationId],

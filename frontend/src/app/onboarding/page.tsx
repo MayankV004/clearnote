@@ -19,6 +19,7 @@ import {
 import { useAuth, useUser } from "@clerk/nextjs";
 import { useRouter } from "next/navigation";
 import { doctorOnboardingSchema, type DoctorOnboardingFormValues } from "@/features/doctor/validations";
+import { SignatureCanvas } from "@/features/doctor/components/SignatureCanvas";
 import { toast } from "sonner";
 
 const STEPS = [
@@ -93,9 +94,22 @@ function AnimeStep({ children, stepKey }: { children: React.ReactNode, stepKey: 
   return <div ref={ref}>{children}</div>;
 }
 
+function dataUrlToBlob(dataUrl: string): Blob {
+  const parts = dataUrl.split(";base64,");
+  const contentType = parts[0].split(":")[1] || "image/png";
+  const raw = window.atob(parts[1]);
+  const rawLength = raw.length;
+  const uInt8Array = new Uint8Array(rawLength);
+  for (let i = 0; i < rawLength; ++i) {
+    uInt8Array[i] = raw.charCodeAt(i);
+  }
+  return new Blob([uInt8Array], { type: contentType });
+}
+
 export default function OnboardingPage() {
   const [currentStep, setCurrentStep] = useState(1);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [signatureDataUrl, setSignatureDataUrl] = useState<string | null>(null);
 
   const { user } = useUser();
   const { getToken } = useAuth();
@@ -147,6 +161,26 @@ export default function OnboardingPage() {
         const err = await res.json();
         throw new Error(err.detail || "Submission failed. Please try again.");
       }
+
+      // Upload signature if drawn
+      if (signatureDataUrl) {
+        try {
+          const blob = dataUrlToBlob(signatureDataUrl);
+          const formData = new FormData();
+          formData.append("file", blob, "signature.png");
+          await fetch(`${process.env.NEXT_PUBLIC_API_URL}/doctors/me/signature`, {
+            method: "POST",
+            headers: {
+              Authorization: `Bearer ${token}`,
+            },
+            body: formData,
+          });
+        } catch {
+          // Non-blocking signature upload warning
+          toast.warning("Profile saved, but signature upload could not be verified.");
+        }
+      }
+
       toast.success("Profile complete! Welcome to ClearNote.");
       router.replace("/dashboard");
     } catch (e: unknown) {
@@ -358,19 +392,32 @@ export default function OnboardingPage() {
                   {/* STEP 3 */}
                   {currentStep === 3 && (
                     <AnimeStep stepKey={3}>
-                      <div className="space-y-4">
-                      <InputField label="Professional Bio" id="bio" error={errors.bio?.message}>
-                        <textarea
-                          id="bio"
-                          rows={6}
-                          {...register("bio")}
-                          className={`${inputClass} resize-none`}
-                          placeholder="Share your background, approach to patient care, and any special interests. Patients will see this on your profile..."
-                        />
-                      </InputField>
-                      <p className="text-xs text-slate-400">
-                        Minimum 10 characters. Visible to patients on your public profile.
-                      </p>
+                      <div className="space-y-6">
+                        <InputField label="Professional Bio" id="bio" error={errors.bio?.message}>
+                          <textarea
+                            id="bio"
+                            rows={4}
+                            {...register("bio")}
+                            className={`${inputClass} resize-none`}
+                            placeholder="Share your background, approach to patient care, and any special interests. Patients will see this on your profile..."
+                          />
+                        </InputField>
+                        <p className="text-xs text-slate-400 -mt-3">
+                          Minimum 10 characters. Visible to patients on your public profile.
+                        </p>
+
+                        <div className="pt-2 border-t border-slate-100">
+                          <label className="block text-sm font-semibold text-slate-700 mb-2">
+                            Digital Prescription Signature
+                          </label>
+                          <SignatureCanvas onSave={setSignatureDataUrl} />
+                          {signatureDataUrl && (
+                            <p className="mt-2 text-xs text-emerald-600 flex items-center gap-1.5 font-medium">
+                              <CheckCircle2 className="w-3.5 h-3.5" />
+                              Signature captured and will be applied to your prescriptions.
+                            </p>
+                          )}
+                        </div>
                       </div>
                     </AnimeStep>
                   )}
