@@ -1,111 +1,107 @@
 "use client";
 
-import React, { useEffect, useRef } from "react";
-import { ShieldCheck, Zap, Stethoscope, BellRing, Share2, FileText } from "lucide-react";
-import { animate, createScope, stagger } from "animejs";
+import React from "react";
+import {
+  Mic,
+  ShieldAlert,
+  FileSpreadsheet,
+  Link2,
+  CheckCircle2,
+} from "lucide-react";
+import { Badge } from "@/components/ui/Badge";
 
-const features = [
+const capabilities = [
   {
-    icon: <Zap className="h-6 w-6 text-cyan-600" />,
-    title: "AI-Powered Generation",
-    description: "Instantly convert your consultation audio into structured, accurate medical prescriptions."
+    icon: Mic,
+    tag: "Ambient Capture",
+    title: "Verbatim Speech-to-Text with Deepgram Nova-2",
+    description:
+      "Captures doctor-patient dialogue in real-time through low-latency WebSockets. Generates synchronized word-level timestamps, allowing clinicians to click any sentence in the note to jump directly to the exact audio recording moment.",
+    badge: "Sub-Second Latency",
   },
   {
-    icon: <ShieldCheck className="h-6 w-6 text-cyan-600" />,
-    title: "Secure & Compliant",
-    description: "Built with privacy in mind. Your data and your patients' data are securely encrypted."
+    icon: ShieldAlert,
+    tag: "Safety Intelligence",
+    title: "pgvector RAG Pharmacological Harms Interceptor",
+    description:
+      "Every prescribed medication is continuously cross-referenced against patient dialogue allergies and medical conditions using cosine similarity search across authoritative WHO and FDA guideline embeddings.",
+    badge: "Zero Hallucination Tolerance",
   },
   {
-    icon: <FileText className="h-6 w-6 text-cyan-600" />,
-    title: "Custom Templates",
-    description: "Choose from various specialty-specific templates or create your own custom formats."
+    icon: FileSpreadsheet,
+    tag: "Clinical Synthesis",
+    title: "Discrete SOAP Structuring with Provenance Tracking",
+    description:
+      "Automatically extracts Subjective symptoms, Objective vitals, Assessment ICD-10 codes, and Plan regimens into discrete editable fields. Explicit [AI Draft] markers transition to [Clinician Verified] upon manual review.",
+    badge: "ICD-10 Mapped",
   },
   {
-    icon: <Stethoscope className="h-6 w-6 text-cyan-600" />,
-    title: "Clinical Accuracy",
-    description: "Manually review, edit, and e-sign everything before finalizing the document."
+    icon: Link2,
+    tag: "Compliant Delivery",
+    title: "HMAC-SHA256 Cryptographic Prescription Sharing",
+    description:
+      "Generates tamper-evident, signed public links with 7-day expirations. Patients access branded, legible medication regimens with pharmacy-ready digital physician signatures without needing complex portal accounts.",
+    badge: "21 CFR Part 11",
   },
-  {
-    icon: <Share2 className="h-6 w-6 text-cyan-600" />,
-    title: "Easy Sharing",
-    description: "Seamlessly share digital prescriptions with patients via secure links or email."
-  },
-  {
-    icon: <BellRing className="h-6 w-6 text-cyan-600" />,
-    title: "Medication Reminders",
-    description: "Automatically set up push notifications to remind patients to take their medications."
-  }
 ];
 
 export function FeaturesSection() {
-  const containerRef = useRef<HTMLDivElement>(null);
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const scope = useRef<any>(null);
-
-  useEffect(() => {
-    const observer = new IntersectionObserver(
-      (entries) => {
-        if (entries[0].isIntersecting) {
-          scope.current = createScope({ root: containerRef }).add(() => {
-            animate('.feature-card-anim', {
-              translateY: [30, 0],
-              opacity: [0, 1],
-              ease: 'outQuart',
-              duration: 800,
-              delay: stagger(100)
-            });
-          });
-          observer.disconnect();
-        }
-      },
-      { threshold: 0.1 }
-    );
-
-    if (containerRef.current) {
-      observer.observe(containerRef.current);
-    }
-
-    return () => {
-      observer.disconnect();
-      if (scope.current) scope.current.revert();
-    };
-  }, []);
-
   return (
-    <section className="py-24 relative border-y border-slate-200 overflow-hidden bg-white/10">
-      <div className="absolute inset-0  " />
-      <div className="max-w-screen-2xl mx-auto px-6 relative z-10">
+    <section className="py-20 lg:py-28 border-b border-border bg-card/40">
+      <div className="max-w-7xl mx-auto px-4 sm:px-6">
         
-        <div className="text-center mb-16">
-          <h2 className="text-4xl md:text-5xl font-extrabold text-brand-teal mb-6">
-            Everything you need for modern care
+        {/* Section Header */}
+        <div className="max-w-3xl mx-auto text-center mb-16 space-y-3">
+          <div className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-[var(--radius-xs)] border border-border bg-background text-[11px] font-mono text-muted-foreground uppercase tracking-wider">
+            Clinical System Architecture
+          </div>
+          <h2 className="text-3xl sm:text-4xl font-extrabold tracking-tight text-foreground">
+            Engineered for High-Acuity Outpatient Care
           </h2>
-          <p className="text-slate-600 max-w-2xl mx-auto text-lg">
-            ClearNote is packed with features designed to save you time and improve patient outcomes.
+          <p className="text-sm sm:text-base text-muted-foreground leading-relaxed">
+            ClearNote is not a generic dictation assistant. It is a purpose-built clinical documentation system with integrated pharmacological safety guardrails and human-in-the-loop review.
           </p>
         </div>
 
-        <div 
-          ref={containerRef}
-          className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6"
-        >
-          {features.map((feature, idx) => (
-            <div 
-              key={idx} 
-              className="feature-card-anim opacity-0 group relative bg-white/70 backdrop-blur-xl p-8 rounded-3xl border border-white shadow-[var(--shadow-sm)] hover:border-cyan-200 transition-all duration-300 hover:shadow-[var(--shadow-md)] hover:-translate-y-1 overflow-hidden"
-            >
-              <div className="absolute top-0 left-0 w-full h-1 bg-brand-teal opacity-0 group-hover:opacity-100 transition-opacity duration-300 ease-in-out" />
-              <div className="mb-6 inline-flex items-center justify-center h-12 w-12 rounded-2xl bg-white border border-cyan-100 group-hover:scale-110 transition-transform duration-300 shadow-sm">
-                {feature.icon}
+        {/* 4-Feature Clinical Grid */}
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+          {capabilities.map((cap, idx) => {
+            const Icon = cap.icon;
+            return (
+              <div
+                key={idx}
+                className="rounded-[var(--radius-lg)] border border-border bg-card p-6 sm:p-7 shadow-xs hover:border-border/80 transition-all flex flex-col justify-between"
+              >
+                <div className="space-y-4">
+                  <div className="flex items-center justify-between">
+                    <div className="w-10 h-10 rounded-[var(--radius-sm)] bg-muted/60 border border-border flex items-center justify-center text-primary">
+                      <Icon className="w-5 h-5" />
+                    </div>
+                    <Badge variant="outline" className="text-[10px] font-mono">
+                      {cap.badge}
+                    </Badge>
+                  </div>
+
+                  <div>
+                    <span className="text-[11px] font-mono uppercase tracking-wider text-primary font-semibold">
+                      {cap.tag}
+                    </span>
+                    <h3 className="text-base sm:text-lg font-bold text-foreground mt-1 mb-2">
+                      {cap.title}
+                    </h3>
+                    <p className="text-xs sm:text-sm text-muted-foreground leading-relaxed">
+                      {cap.description}
+                    </p>
+                  </div>
+                </div>
+
+                <div className="pt-5 mt-5 border-t border-border/60 flex items-center gap-2 text-xs font-medium text-primary">
+                  <CheckCircle2 className="w-4 h-4 text-primary" />
+                  <span>Integrated into every consultation</span>
+                </div>
               </div>
-              <h3 className="text-xl font-semibold text-slate-900 mb-3">
-                {feature.title}
-              </h3>
-              <p className="text-slate-600 leading-relaxed">
-                {feature.description}
-              </p>
-            </div>
-          ))}
+            );
+          })}
         </div>
 
       </div>

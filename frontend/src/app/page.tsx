@@ -2,11 +2,12 @@ import { Navbar } from "./ui/Navbar";
 import { HeroSection } from "./ui/HeroSection";
 import { FeaturesSection } from "./ui/FeaturesSection";
 import { GuideSection } from "./ui/GuideSection";
+import { SecuritySection } from "./ui/SecuritySection";
 import { Footer } from "./ui/Footer";
 
 export default function Home() {
   return (
-    <main className="min-h-screen bg-white text-slate-900 selection:bg-teal-500/30">
+    <main className="min-h-screen bg-background text-foreground selection:bg-teal-500/20">
       <Navbar />
       <HeroSection />
       
@@ -14,8 +15,12 @@ export default function Home() {
         <FeaturesSection />
       </div>
       
-      <div id="guide">
+      <div id="workflow">
         <GuideSection />
+      </div>
+
+      <div id="security">
+        <SecuritySection />
       </div>
       
       <Footer />
