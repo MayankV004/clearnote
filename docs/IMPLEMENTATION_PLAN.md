@@ -123,6 +123,38 @@ flowchart TD
 
 ---
 
+### [x] TICKET-01B: Server-Side PostgreSQL RLS Parameter Hook (COMPLETED)
+- **Priority**: P0 (Security / Multi-tenancy)
+- **Gap Reference**: `SEC-03`
+- **Scope**: Execute `set_config('app.current_doctor_id', :doctor_id, true)` in auth dependency to enforce Postgres RLS policies.
+- **Files Affected**: `backend/app/api/dependencies/auth.py`
+
+---
+
+### [x] TICKET-01C: PHI Removal from Server Logs (COMPLETED)
+- **Priority**: P0 (HIPAA Compliance)
+- **Gap Reference**: `SEC-06`
+- **Scope**: Remove raw patient names and mask emails/phone numbers in all application log calls.
+- **Files Affected**: `backend/app/core/logger.py`, `backend/app/services/patient_service.py`, `notification_service.py`, `webhooks.py`
+
+---
+
+### [x] TICKET-01D: Prompt-Injection Defense with XML Delimiters (COMPLETED)
+- **Priority**: P1 (Security / AI Safety)
+- **Gap Reference**: `SEC-07`
+- **Scope**: Wrap untrusted clinical transcripts and retrieval inputs in XML structural delimiters and instruct LLMs to ignore override attempts.
+- **Files Affected**: `backend/app/prompts/soap_extraction.py`, `backend/app/prompts/drug_interaction.py`, `backend/tests/unit/test_prompts.py`
+
+---
+
+### [ ] TICKET-01E: Route Rate Limiting & CSP Calibration
+- **Priority**: P1 (Security / Hardening)
+- **Gap Reference**: `SEC-08`
+- **Scope**: Apply rate limits to public/sensitive endpoints (`ingest_guidelines_endpoint`, `get_public_prescription`, `data_deletion`) and calibrate CSP headers for Clerk, S3, and Deepgram.
+- **Files Affected**: `backend/app/middleware/security_header.py`, `backend/app/api/routes/`
+
+---
+
 ## 3. Sprint 2: Data Indexing & Clinical Guardrails (P0)
 
 ### TICKET-05: Add HNSW Vector Index Migration on `guideline_chunks`
