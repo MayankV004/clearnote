@@ -3,96 +3,52 @@
 import React, { useState } from "react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
-import { animate } from "animejs";
-import Image from "next/image";
 import {
   Building2,
-  User,
   ArrowRight,
   ArrowLeft,
   CheckCircle2,
-  Loader2,
   ShieldCheck,
-  ClipboardList,
-  Sparkles,
+  Lock,
+  FileCheck,
+  Stethoscope,
 } from "lucide-react";
 import { useAuth, useUser } from "@clerk/nextjs";
 import { useRouter } from "next/navigation";
-import { doctorOnboardingSchema, type DoctorOnboardingFormValues } from "@/features/doctor/validations";
+import {
+  doctorOnboardingSchema,
+  type DoctorOnboardingFormValues,
+} from "@/features/doctor/validations";
 import { SignatureCanvas } from "@/features/doctor/components/SignatureCanvas";
+import { Button } from "@/components/ui/Button";
 import { toast } from "sonner";
 
 const STEPS = [
   {
     id: 1,
-    title: "Professional Details",
-    subtitle: "Your credentials & speciality",
-    icon: User,
+    title: "Professional Credentials",
+    subtitle: "Medical specialty, experience & state license",
+    icon: Stethoscope,
   },
   {
     id: 2,
-    title: "Clinic Information",
-    subtitle: "Where you practice",
+    title: "Practice & Clinic Information",
+    subtitle: "Primary hospital or practice address and contact",
     icon: Building2,
   },
   {
     id: 3,
-    title: "Your Story",
-    subtitle: "Let patients know you",
-    icon: User,
+    title: "Prescription Signature",
+    subtitle: "Digital signature pad & clinical biography",
+    icon: FileCheck,
   },
 ];
 
 const TRUST_SIGNALS = [
-  { icon: ShieldCheck, text: "Your data is encrypted & secure" },
-  { icon: ClipboardList, text: "Takes less than 3 minutes" },
-  { icon: Sparkles, text: "Patients can discover you after completion" },
+  { icon: ShieldCheck, text: "HIPAA-compliant BAA protected data store" },
+  { icon: Lock, text: "256-bit AES encryption at rest and in transit" },
+  { icon: FileCheck, text: "License stamped onto legal prescription PDFs" },
 ];
-
-function InputField({
-  label,
-  id,
-  error,
-  children,
-}: {
-  label: string;
-  id: string;
-  error?: string;
-  children: React.ReactNode;
-}) {
-  return (
-    <div className="space-y-1.5">
-      <label htmlFor={id} className="block text-sm font-semibold text-slate-700">
-        {label}
-      </label>
-      {children}
-      {error && (
-        <p className="text-xs text-red-500 flex items-center gap-1.5">
-          <span className="w-1 h-1 rounded-full bg-red-500 flex-shrink-0" />
-          {error}
-        </p>
-      )}
-    </div>
-  );
-}
-
-const inputClass =
-  "block w-full px-4 py-3 rounded-2xl border border-cyan-100 bg-white/70 backdrop-blur-md text-slate-900 placeholder-slate-400 text-sm transition-all duration-300 focus:outline-none focus:ring-2 focus:ring-cyan-500 focus:border-transparent hover:border-cyan-300 shadow-sm";
-
-function AnimeStep({ children, stepKey }: { children: React.ReactNode, stepKey: number }) {
-  const ref = React.useRef<HTMLDivElement>(null);
-  React.useEffect(() => {
-    if (ref.current) {
-      animate(ref.current, {
-        translateX: [24, 0],
-        opacity: [0, 1],
-        ease: 'outQuart',
-        duration: 400
-      });
-    }
-  }, [stepKey]);
-  return <div ref={ref}>{children}</div>;
-}
 
 function dataUrlToBlob(dataUrl: string): Blob {
   const parts = dataUrl.split(";base64,");
@@ -176,7 +132,6 @@ export default function OnboardingPage() {
             body: formData,
           });
         } catch {
-          // Non-blocking signature upload warning
           toast.warning("Profile saved, but signature upload could not be verified.");
         }
       }
@@ -190,288 +145,343 @@ export default function OnboardingPage() {
     }
   };
 
-  const step = STEPS[currentStep - 1];
-  const StepIcon = step.icon;
   const progressPct = ((currentStep - 1) / (STEPS.length - 1)) * 100;
 
   return (
-    <div className="min-h-screen bg-white text-slate-900 selection:bg-teal-500/30">
-
-      {/* ── Top Nav Bar (matches site Navbar) ────────────────────── */}
-      <header className="fixed top-0 left-0 right-0 z-50 border-b border-cyan-100 bg-white/60 backdrop-blur-xl">
-        <div className="mx-auto flex max-w-screen-2xl items-center justify-between px-6 py-4">
-          <div className="flex items-center gap-3">
-            <Image src="/logo.png" alt="ClearNote Logo" width={40} height={40} className="drop-shadow-sm" />
-            <span className="text-xl font-bold tracking-tight text-slate-900 text-brand-teal">ClearNote</span>
+    <div className="min-h-screen bg-background text-foreground flex flex-col font-sans selection:bg-primary/20">
+      {/* ── Top Bar ──────────────────────────────────────────────────────── */}
+      <header className="sticky top-0 z-40 border-b border-border bg-card/90 backdrop-blur-md">
+        <div className="mx-auto max-w-7xl px-4 sm:px-6 h-14 flex items-center justify-between">
+          <div className="flex items-center gap-2.5">
+            <div className="w-7 h-7 rounded-[var(--radius-xs)] bg-primary text-primary-foreground flex items-center justify-center font-bold text-sm shadow-xs">
+              +
+            </div>
+            <div className="flex items-baseline gap-1.5">
+              <span className="font-bold text-base tracking-tight text-foreground">ClearNote</span>
+              <span className="text-[10px] font-mono uppercase tracking-wider text-muted-foreground font-semibold">
+                Clinical Setup
+              </span>
+            </div>
           </div>
-          <div className="flex items-center gap-2 text-sm text-cyan-600 font-medium">
-            <span>Step {currentStep} of {STEPS.length}</span>
+
+          <div className="flex items-center gap-2">
+            <span className="text-xs font-mono text-muted-foreground">
+              Step {currentStep} of {STEPS.length}
+            </span>
           </div>
         </div>
       </header>
 
-      {/* ── Main Content ──────────────────────────────────────────── */}
-      <main className="flex min-h-screen pt-[73px]">
-
-        {/* Left Panel */}
-        <div className="hidden lg:flex lg:w-[400px] xl:w-[460px] flex-col border-r border-cyan-100 bg-white/30 px-10 py-16 flex-shrink-0 relative overflow-hidden">
-          {/* Subtle teal glow */}
-          
-
-          <div className="relative z-10 flex flex-col h-full">
-            {/* Greeting */}
-            <div className="mb-12">
-              <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-white border border-cyan-200 text-cyan-700 text-xs font-medium mb-4 shadow-sm">
-                <Sparkles className="h-3.5 w-3.5" />
-                <span>Profile Setup</span>
-              </div>
-              <h2 className="text-2xl font-extrabold text-slate-900 leading-tight mb-2">
-                Welcome, Dr. {user?.firstName || "Doctor"}!
+      {/* ── Main Layout ──────────────────────────────────────────────────── */}
+      <div className="flex-1 flex flex-col lg:flex-row mx-auto max-w-7xl w-full">
+        {/* Left Sidebar Checklist (Desktop) */}
+        <aside className="hidden lg:flex lg:w-80 xl:w-96 flex-col border-r border-border p-8 justify-between bg-card/40">
+          <div className="space-y-8">
+            <div>
+              <span className="text-xs font-mono font-semibold text-primary uppercase tracking-wider">
+                Physician Onboarding
+              </span>
+              <h2 className="text-xl font-bold tracking-tight text-foreground mt-1">
+                Welcome, Dr. {user?.lastName || user?.firstName || "Doctor"}
               </h2>
-              <p className="text-slate-500 text-sm leading-relaxed">
-                Complete your profile to start seeing patients on ClearNote. It takes less than 3 minutes.
+              <p className="text-xs text-muted-foreground mt-1 leading-relaxed">
+                Configure your practice credentials to unlock automated transcription, SOAP notes, and legal e-prescriptions.
               </p>
             </div>
 
-            {/* Step List */}
-            <div className="space-y-3 flex-1">
+            {/* Stepper Navigation */}
+            <nav className="space-y-3" aria-label="Onboarding Steps">
               {STEPS.map((s) => {
                 const Icon = s.icon;
                 const isCompleted = currentStep > s.id;
                 const isCurrent = currentStep === s.id;
+
                 return (
                   <div
                     key={s.id}
-                    className={`flex items-center gap-4 p-4 rounded-3xl border transition-all duration-300 ${
+                    className={`flex items-start gap-3 p-3 rounded-[var(--radius-md)] border transition-colors ${
                       isCurrent
-                        ? "bg-white/70 backdrop-blur-md border-cyan-200 shadow-sm"
+                        ? "border-primary/40 bg-primary/5 text-foreground shadow-xs"
                         : isCompleted
-                        ? "bg-white/50 border-cyan-100"
-                        : "bg-white/40 border-slate-100 opacity-50"
+                        ? "border-border bg-card/60 text-muted-foreground"
+                        : "border-transparent text-muted-foreground/60"
                     }`}
                   >
                     <div
-                      className={`w-9 h-9 rounded-xl flex items-center justify-center flex-shrink-0 transition-colors ${
+                      className={`w-7 h-7 rounded-[var(--radius-xs)] flex items-center justify-center shrink-0 text-xs font-bold font-mono transition-colors ${
                         isCompleted
-                          ? "bg-cyan-600 text-white"
+                          ? "bg-emerald-500/10 text-emerald-600 dark:text-emerald-400"
                           : isCurrent
-                          ? "bg-white text-cyan-600 border border-cyan-200 shadow-sm"
-                          : "bg-slate-100 text-slate-400"
+                          ? "bg-primary text-primary-foreground"
+                          : "bg-muted text-muted-foreground"
                       }`}
                     >
                       {isCompleted ? (
                         <CheckCircle2 className="w-4 h-4" />
                       ) : (
-                        <Icon className="w-4 h-4" />
+                        <Icon className="w-3.5 h-3.5" />
                       )}
                     </div>
-                    <div>
-                      <p className={`text-sm font-semibold ${isCurrent ? "text-slate-900" : isCompleted ? "text-cyan-700" : "text-slate-400"}`}>
+                    <div className="min-w-0">
+                      <p
+                        className={`text-xs font-bold leading-tight ${
+                          isCurrent ? "text-foreground" : "text-muted-foreground"
+                        }`}
+                      >
                         {s.title}
                       </p>
-                      <p className={`text-xs ${isCurrent ? "text-slate-500" : "text-slate-400"}`}>
+                      <p className="text-[11px] text-muted-foreground font-mono mt-0.5 truncate">
                         {s.subtitle}
                       </p>
                     </div>
                   </div>
                 );
               })}
-            </div>
-
-            {/* Trust Signals */}
-            <div className="mt-10 pt-8 border-t border-slate-200 space-y-3">
-              {TRUST_SIGNALS.map(({ icon: Icon, text }) => (
-                <div key={text} className="flex items-center gap-3 text-sm text-slate-500">
-                  <Icon className="w-4 h-4 text-teal-500 flex-shrink-0" />
-                  <span>{text}</span>
-                </div>
-              ))}
-            </div>
+            </nav>
           </div>
-        </div>
+
+          {/* Clinical Security Signals */}
+          <div className="pt-6 border-t border-border/60 space-y-2.5">
+            {TRUST_SIGNALS.map(({ icon: Icon, text }) => (
+              <div
+                key={text}
+                className="flex items-center gap-2.5 text-[11px] text-muted-foreground font-mono"
+              >
+                <Icon className="w-3.5 h-3.5 text-primary shrink-0" />
+                <span>{text}</span>
+              </div>
+            ))}
+          </div>
+        </aside>
 
         {/* Right Form Panel */}
-        <div className="flex-1 flex flex-col justify-center px-6 py-16 sm:px-12 lg:px-16 xl:px-24">
-          <div className="max-w-[500px] w-full mx-auto">
-
-            {/* Mobile Step Label */}
-            <div className="lg:hidden mb-6">
-              <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-white border border-cyan-200 text-cyan-700 text-xs font-medium">
-                <StepIcon className="h-3.5 w-3.5" />
-                <span>{step.title}</span>
+        <main className="flex-1 p-6 sm:p-10 lg:p-12 flex flex-col justify-center">
+          <div className="max-w-lg w-full mx-auto space-y-6">
+            {/* Step Header */}
+            <div>
+              <div className="flex items-center justify-between gap-2 mb-2">
+                <span className="text-xs font-mono font-semibold text-primary uppercase tracking-wider">
+                  Step {currentStep} of {STEPS.length}
+                </span>
+                <span className="text-[11px] font-mono text-muted-foreground">
+                  {Math.round(progressPct)}% Completed
+                </span>
               </div>
-            </div>
-
-            {/* Section Header */}
-            <div className="mb-6">
-              <h1 className="text-2xl font-extrabold text-slate-900 mb-1">
-                {step.title}
+              <h1 className="text-2xl font-bold tracking-tight text-foreground">
+                {STEPS[currentStep - 1].title}
               </h1>
-              <p className="text-slate-500 text-sm">{step.subtitle}</p>
+              <p className="text-xs text-muted-foreground font-mono mt-0.5">
+                {STEPS[currentStep - 1].subtitle}
+              </p>
             </div>
 
-            {/* Progress Bar */}
-            <div className="mb-8 h-2 w-full bg-slate-100 rounded-full overflow-hidden">
+            {/* Stepper Progress Bar */}
+            <div className="h-1.5 w-full bg-muted rounded-[var(--radius-xs)] overflow-hidden">
               <div
-                className="h-full bg-brand-teal rounded-full transition-all duration-500 ease-out"
-                style={{ width: `${Math.max(progressPct, 8)}%` }}
+                className="h-full bg-primary rounded-[var(--radius-xs)] transition-all duration-300 ease-out"
+                style={{ width: `${Math.max(progressPct, 5)}%` }}
               />
             </div>
 
-            {/* Form */}
-            <form onSubmit={handleSubmit(onSubmit)}>
-              <div className="min-h-[260px]">
-                  {/* STEP 1 */}
-                  {currentStep === 1 && (
-                    <AnimeStep stepKey={1}>
-                      <div className="space-y-5">
-                      <InputField label="Medical Speciality" id="speciality" error={errors.speciality?.message}>
-                        <input
-                          id="speciality"
-                          {...register("speciality")}
-                          className={inputClass}
-                          placeholder="e.g. Cardiology, Pediatrics, General Practice"
-                        />
-                      </InputField>
-                      <div className="grid grid-cols-2 gap-4">
-                        <InputField label="Years of Experience" id="years_of_experience" error={errors.years_of_experience?.message}>
-                          <input
-                            id="years_of_experience"
-                            type="number"
-                            min={0}
-                            {...register("years_of_experience", { valueAsNumber: true })}
-                            className={inputClass}
-                            placeholder="0"
-                          />
-                        </InputField>
-                        <InputField label="Medical License No." id="license_no" error={errors.license_no?.message}>
-                          <input
-                            id="license_no"
-                            {...register("license_no")}
-                            className={inputClass}
-                            placeholder="MED-12345"
-                          />
-                        </InputField>
-                      </div>
-                      </div>
-                    </AnimeStep>
-                  )}
+            {/* Wizard Form */}
+            <form onSubmit={handleSubmit(onSubmit)} className="space-y-4">
+              {/* STEP 1: Professional Details */}
+              {currentStep === 1 && (
+                <div className="space-y-3.5 animate-in fade-in duration-150">
+                  <div>
+                    <label
+                      htmlFor="speciality"
+                      className="mb-1 block text-xs font-semibold text-foreground"
+                    >
+                      Medical Specialty <span className="text-destructive">*</span>
+                    </label>
+                    <input
+                      id="speciality"
+                      {...register("speciality")}
+                      className="w-full h-8 px-2.5 text-xs rounded-[var(--radius-sm)] border border-input bg-background text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-1 focus:ring-ring"
+                      placeholder="e.g. Internal Medicine, Family Practice, Cardiology"
+                    />
+                    {errors.speciality && (
+                      <p className="text-[11px] text-destructive mt-1 font-mono">
+                        {errors.speciality.message}
+                      </p>
+                    )}
+                  </div>
 
-                  {/* STEP 2 */}
-                  {currentStep === 2 && (
-                    <AnimeStep stepKey={2}>
-                      <div className="space-y-5">
-                      <InputField label="Primary Clinic / Hospital Name" id="clinic_name" error={errors.clinic_name?.message}>
-                        <input
-                          id="clinic_name"
-                          {...register("clinic_name")}
-                          className={inputClass}
-                          placeholder="City General Hospital"
-                        />
-                      </InputField>
-                      <InputField label="Clinic Address" id="clinic_address" error={errors.clinic_address?.message}>
-                        <input
-                          id="clinic_address"
-                          {...register("clinic_address")}
-                          className={inputClass}
-                          placeholder="123 Health Avenue, Suite 100, Mumbai"
-                        />
-                      </InputField>
-                      <InputField label="Clinic Phone Number" id="clinic_phone" error={errors.clinic_phone?.message}>
-                        <input
-                          id="clinic_phone"
-                          {...register("clinic_phone")}
-                          className={inputClass}
-                          placeholder="+91 98765 43210"
-                        />
-                      </InputField>
-                    </div>
-                    </AnimeStep>
-                  )}
-
-                  {/* STEP 3 */}
-                  {currentStep === 3 && (
-                    <AnimeStep stepKey={3}>
-                      <div className="space-y-6">
-                        <InputField label="Professional Bio" id="bio" error={errors.bio?.message}>
-                          <textarea
-                            id="bio"
-                            rows={4}
-                            {...register("bio")}
-                            className={`${inputClass} resize-none`}
-                            placeholder="Share your background, approach to patient care, and any special interests. Patients will see this on your profile..."
-                          />
-                        </InputField>
-                        <p className="text-xs text-slate-400 -mt-3">
-                          Minimum 10 characters. Visible to patients on your public profile.
+                  <div className="grid grid-cols-2 gap-3">
+                    <div>
+                      <label
+                        htmlFor="years_of_experience"
+                        className="mb-1 block text-xs font-semibold text-foreground"
+                      >
+                        Years of Experience <span className="text-destructive">*</span>
+                      </label>
+                      <input
+                        id="years_of_experience"
+                        type="number"
+                        min={0}
+                        {...register("years_of_experience", { valueAsNumber: true })}
+                        className="w-full h-8 px-2.5 text-xs rounded-[var(--radius-sm)] border border-input bg-background text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-1 focus:ring-ring font-mono"
+                        placeholder="10"
+                      />
+                      {errors.years_of_experience && (
+                        <p className="text-[11px] text-destructive mt-1 font-mono">
+                          {errors.years_of_experience.message}
                         </p>
+                      )}
+                    </div>
 
-                        <div className="pt-2 border-t border-slate-100">
-                          <label className="block text-sm font-semibold text-slate-700 mb-2">
-                            Digital Prescription Signature
-                          </label>
-                          <SignatureCanvas onSave={setSignatureDataUrl} />
-                          {signatureDataUrl && (
-                            <p className="mt-2 text-xs text-emerald-600 flex items-center gap-1.5 font-medium">
-                              <CheckCircle2 className="w-3.5 h-3.5" />
-                              Signature captured and will be applied to your prescriptions.
-                            </p>
-                          )}
-                        </div>
-                      </div>
-                    </AnimeStep>
-                  )}
-              </div>
+                    <div>
+                      <label
+                        htmlFor="license_no"
+                        className="mb-1 block text-xs font-semibold text-foreground"
+                      >
+                        Medical License # <span className="text-destructive">*</span>
+                      </label>
+                      <input
+                        id="license_no"
+                        {...register("license_no")}
+                        className="w-full h-8 px-2.5 text-xs rounded-[var(--radius-sm)] border border-input bg-background text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-1 focus:ring-ring font-mono uppercase"
+                        placeholder="MED-NY-849201"
+                      />
+                      {errors.license_no && (
+                        <p className="text-[11px] text-destructive mt-1 font-mono">
+                          {errors.license_no.message}
+                        </p>
+                      )}
+                    </div>
+                  </div>
 
-              {/* Navigation */}
-              <div className="flex items-center justify-between mt-8 pt-6 border-t border-slate-100">
-                <button
+                  <p className="text-[11px] text-muted-foreground font-mono">
+                    Your state license number will be automatically stamped onto PDF prescriptions generated for your patients.
+                  </p>
+                </div>
+              )}
+
+              {/* STEP 2: Clinic Information */}
+              {currentStep === 2 && (
+                <div className="space-y-3.5 animate-in fade-in duration-150">
+                  <div>
+                    <label
+                      htmlFor="clinic_name"
+                      className="mb-1 block text-xs font-semibold text-foreground"
+                    >
+                      Practice or Hospital Name <span className="text-destructive">*</span>
+                    </label>
+                    <input
+                      id="clinic_name"
+                      {...register("clinic_name")}
+                      className="w-full h-8 px-2.5 text-xs rounded-[var(--radius-sm)] border border-input bg-background text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-1 focus:ring-ring"
+                      placeholder="e.g. Mount Sinai West Outpatient Clinic"
+                    />
+                    {errors.clinic_name && (
+                      <p className="text-[11px] text-destructive mt-1 font-mono">
+                        {errors.clinic_name.message}
+                      </p>
+                    )}
+                  </div>
+
+                  <div>
+                    <label
+                      htmlFor="clinic_address"
+                      className="mb-1 block text-xs font-semibold text-foreground"
+                    >
+                      Clinic Street Address <span className="text-destructive">*</span>
+                    </label>
+                    <input
+                      id="clinic_address"
+                      {...register("clinic_address")}
+                      className="w-full h-8 px-2.5 text-xs rounded-[var(--radius-sm)] border border-input bg-background text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-1 focus:ring-ring"
+                      placeholder="e.g. 1000 10th Ave, New York, NY 10019"
+                    />
+                    {errors.clinic_address && (
+                      <p className="text-[11px] text-destructive mt-1 font-mono">
+                        {errors.clinic_address.message}
+                      </p>
+                    )}
+                  </div>
+
+                  <div>
+                    <label
+                      htmlFor="clinic_phone"
+                      className="mb-1 block text-xs font-semibold text-foreground"
+                    >
+                      Workplace Direct Phone <span className="text-destructive">*</span>
+                    </label>
+                    <input
+                      id="clinic_phone"
+                      {...register("clinic_phone")}
+                      className="w-full h-8 px-2.5 text-xs rounded-[var(--radius-sm)] border border-input bg-background text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-1 focus:ring-ring font-mono"
+                      placeholder="+1 (555) 234-5678"
+                    />
+                    {errors.clinic_phone && (
+                      <p className="text-[11px] text-destructive mt-1 font-mono">
+                        {errors.clinic_phone.message}
+                      </p>
+                    )}
+                  </div>
+                </div>
+              )}
+
+              {/* STEP 3: Bio & Digital Signature */}
+              {currentStep === 3 && (
+                <div className="space-y-4 animate-in fade-in duration-150">
+                  <div>
+                    <label
+                      htmlFor="bio"
+                      className="mb-1 block text-xs font-semibold text-foreground"
+                    >
+                      Professional Biography <span className="text-destructive">*</span>
+                    </label>
+                    <textarea
+                      id="bio"
+                      rows={3}
+                      {...register("bio")}
+                      className="w-full text-xs rounded-[var(--radius-sm)] border border-input bg-background text-foreground placeholder:text-muted-foreground p-2.5 focus:outline-none focus:ring-1 focus:ring-ring leading-relaxed resize-y"
+                      placeholder="Share your clinical background, training, and approach to patient care..."
+                    />
+                    {errors.bio && (
+                      <p className="text-[11px] text-destructive mt-1 font-mono">
+                        {errors.bio.message}
+                      </p>
+                    )}
+                  </div>
+
+                  <div className="pt-2 border-t border-border/60">
+                    <SignatureCanvas onSave={setSignatureDataUrl} />
+                  </div>
+                </div>
+              )}
+
+              {/* Navigation Controls */}
+              <div className="flex items-center justify-between pt-4 border-t border-border/60">
+                <Button
                   type="button"
+                  variant="outline"
+                  size="sm"
                   onClick={prevStep}
                   disabled={currentStep === 1}
-                  className={`flex items-center gap-2 px-4 py-2.5 text-sm font-medium rounded-full border transition-all duration-200 ${
-                    currentStep === 1
-                      ? "text-slate-300 border-slate-100 cursor-not-allowed"
-                      : "text-slate-600 border-slate-200 hover:bg-slate-50 hover:border-slate-300"
-                  }`}
                 >
-                  <ArrowLeft className="w-4 h-4" />
+                  <ArrowLeft className="w-3.5 h-3.5 mr-1" />
                   Back
-                </button>
+                </Button>
 
                 {currentStep < 3 ? (
-                  <button
-                    type="button"
-                    onClick={nextStep}
-                    className="inline-flex items-center gap-2 bg-brand-teal hover:bg-brand-darkteal text-white px-6 py-2.5 rounded-full text-sm font-semibold transition-all hover:-translate-y-0.5 shadow-[0_10px_20px_-10px_rgba(8,145,178,0.5)]"
-                  >
+                  <Button type="button" size="sm" onClick={nextStep}>
                     Continue
-                    <ArrowRight className="w-4 h-4" />
-                  </button>
+                    <ArrowRight className="w-3.5 h-3.5 ml-1" />
+                  </Button>
                 ) : (
-                  <button
-                    type="submit"
-                    disabled={isSubmitting}
-                    className="inline-flex items-center gap-2 bg-brand-teal hover:bg-brand-darkteal text-white px-6 py-2.5 rounded-full text-sm font-semibold transition-all hover:-translate-y-0.5 shadow-[0_10px_20px_-10px_rgba(8,145,178,0.5)] disabled:opacity-60 disabled:cursor-not-allowed disabled:hover:translate-y-0"
-                  >
-                    {isSubmitting ? (
-                      <>
-                        <Loader2 className="w-4 h-4 animate-spin" />
-                        Saving Profile...
-                      </>
-                    ) : (
-                      <>
-                        Complete Profile
-                        <CheckCircle2 className="w-4 h-4" />
-                      </>
-                    )}
-                  </button>
+                  <Button type="submit" size="sm" isLoading={isSubmitting}>
+                    Complete Clinical Profile
+                    <CheckCircle2 className="w-3.5 h-3.5 ml-1" />
+                  </Button>
                 )}
               </div>
             </form>
           </div>
-        </div>
-      </main>
+        </main>
+      </div>
     </div>
   );
 }
