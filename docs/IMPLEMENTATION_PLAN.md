@@ -51,7 +51,7 @@ flowchart TD
 
 ## 2. Sprint 1: Security & Compliance Blockers (P0)
 
-### TICKET-01: Authenticate Consultation WebSocket Stream
+### [x] TICKET-01: Authenticate Consultation WebSocket Stream (COMPLETED)
 - **Priority**: P0 (Blocker)
 - **Gap Reference**: `SEC-01`
 - **Scope**: Secure the `/{consultation_id}/stream` WebSocket route by requiring a valid Clerk JWT and verifying that the consultation belongs to the authenticated doctor.

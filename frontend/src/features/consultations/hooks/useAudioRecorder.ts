@@ -1,11 +1,13 @@
 "use client";
 
 import { useState, useRef, useCallback } from "react";
+import { useAuth } from "@clerk/nextjs";
 import { useCreateConsultation } from "../api/useCreateConsultation";
 
 type RecordingStatus = "idle" | "starting" | "recording" | "processing" | "complete" | "error";
 
 export function useAudioRecorder(patientId: string) {
+  const { getToken } = useAuth();
   const [status, setStatus] = useState<RecordingStatus>("idle");
   const [duration, setDuration] = useState(0);
   const [error, setError] = useState<string | null>(null);
@@ -31,8 +33,10 @@ export function useAudioRecorder(patientId: string) {
       const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
       streamRef.current = stream;
 
-      // 3. Connect WebSocket (Hardcoded for local dev as per plan)
-      const wsUrl = `ws://localhost:8000/consultations/${consultation.id}/stream`;
+      // 3. Connect WebSocket with auth token
+      const token = await getToken();
+      const tokenParam = token ? `?token=${encodeURIComponent(token)}` : "";
+      const wsUrl = `ws://localhost:8000/consultations/${consultation.id}/stream${tokenParam}`;
       const ws = new WebSocket(wsUrl);
       webSocketRef.current = ws;
 
@@ -81,7 +85,7 @@ export function useAudioRecorder(patientId: string) {
       setError(errorMessage);
       setStatus("error");
     }
-  }, [patientId, createConsultation]);
+  }, [patientId, createConsultation, getToken]);
 
   const stopRecording = useCallback(() => {
     if (mediaRecorderRef.current && mediaRecorderRef.current.state !== "inactive") {

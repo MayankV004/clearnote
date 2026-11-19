@@ -18,7 +18,8 @@ from typing import Annotated
 
 import clerk_backend_api
 from clerk_backend_api.security.types import AuthenticateRequestOptions, RequestState
-from fastapi import Depends, HTTPException, Request, status
+from fastapi import Depends, HTTPException, Request, WebSocket, status
+from fastapi.exceptions import WebSocketException
 
 from app.core.config import settings
 from app.core.logger import logger
@@ -106,3 +107,55 @@ async def get_current_doctor(state: CurrentUser, db: AsyncSession = Depends(get_
         logger.warning(f"Failed to set RLS config for {doctor.id}: {e}")
 
     return doctor
+
+
+async def get_current_doctor_ws(
+    websocket: WebSocket,
+    db: AsyncSession = Depends(get_db),
+) -> Doctor:
+    """
+    Authenticate a WebSocket connection using Clerk JWT from query params or headers.
+    Raises WebSocketException with code 1008 (policy violation) if unauthenticated.
+    """
+    token = websocket.query_params.get("token")
+    if not token:
+        auth_header = websocket.headers.get("authorization")
+        if auth_header and auth_header.startswith("Bearer "):
+            token = auth_header.split(" ", 1)[1]
+
+    if not token:
+        raise WebSocketException(
+            code=status.WS_1008_POLICY_VIOLATION,
+            reason="Missing authentication token",
+        )
+
+    class TokenRequest:
+        def __init__(self, t: str):
+            self.headers = {"authorization": f"Bearer {t}"}
+
+    request_state = clerk_backend_api.authenticate_request(
+        TokenRequest(token),
+        AuthenticateRequestOptions(
+            secret_key=settings.CLERK_SECRET_KEY,
+            authorized_parties=settings.CLERK_AUTHORIZED_PARTIES,
+        ),
+    )
+
+    if not request_state.is_signed_in:
+        reason = request_state.message or "Invalid authentication token"
+        raise WebSocketException(
+            code=status.WS_1008_POLICY_VIOLATION,
+            reason=reason,
+        )
+
+    clerk_user_id = request_state.payload["sub"]
+    stmt = select(Doctor).where(Doctor.clerk_user_id == clerk_user_id)
+    doctor = await db.scalar(stmt)
+    if not doctor:
+        raise WebSocketException(
+            code=status.WS_1008_POLICY_VIOLATION,
+            reason="Doctor profile not found",
+        )
+
+    return doctor
+

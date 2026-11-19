@@ -140,3 +140,62 @@ class TestListConsultationsRoute:
         data = response.json()
         assert len(data) == 1
         assert data[0]["doctor_id"] == str(doctor_a.id)
+
+
+class TestAudioStreamWebSocketRoute:
+    """WS /consultations/{consultation_id}/stream"""
+
+    def test_websocket_rejects_unauthenticated_connection(self, db_session):
+        from starlette.testclient import TestClient
+        from starlette.websockets import WebSocketDisconnect
+        import uuid
+
+        with TestClient(app) as test_client:
+            with pytest.raises(WebSocketDisconnect) as exc_info:
+                with test_client.websocket_connect(f"/consultations/{uuid.uuid4()}/stream"):
+                    pass
+            assert exc_info.value.code == 1008
+
+    @pytest.mark.asyncio
+    async def test_websocket_rejects_wrong_doctor(self, client, db_session):
+        from starlette.testclient import TestClient
+        from starlette.websockets import WebSocketDisconnect
+        from app.api.dependencies.auth import get_current_doctor_ws
+
+        doctor_a = await make_doctor(db_session)
+        doctor_b = await make_doctor(db_session)
+        patient_a = await make_patient(db_session, doctor_a.id)
+        consultation_a = await make_consultation(db_session, doctor_a.id, patient_a.id)
+
+        app.dependency_overrides[get_current_doctor_ws] = lambda: doctor_b
+
+        with TestClient(app) as test_client:
+            with pytest.raises(WebSocketDisconnect) as exc_info:
+                with test_client.websocket_connect(f"/consultations/{consultation_a.id}/stream?token=valid_token"):
+                    pass
+            assert exc_info.value.code == 1008
+
+        app.dependency_overrides.pop(get_current_doctor_ws, None)
+
+    @pytest.mark.asyncio
+    async def test_websocket_accepts_authorized_doctor(self, client, db_session, monkeypatch):
+        from starlette.testclient import TestClient
+        from app.api.dependencies.auth import get_current_doctor_ws
+        from app.services.consultation_service import ConsultationService
+
+        doctor = await make_doctor(db_session)
+        patient = await make_patient(db_session, doctor.id)
+        consultation = await make_consultation(db_session, doctor.id, patient.id)
+
+        app.dependency_overrides[get_current_doctor_ws] = lambda: doctor
+
+        # Mock save_audio_and_transcribe so it doesn't try to call Deepgram/S3 on disconnect
+        monkeypatch.setattr(ConsultationService, "save_audio_and_transcribe", AsyncMock())
+
+        with TestClient(app) as test_client:
+            with test_client.websocket_connect(f"/consultations/{consultation.id}/stream?token=valid_token") as ws:
+                ws.send_bytes(b"test audio bytes")
+                ws.close()
+
+        app.dependency_overrides.pop(get_current_doctor_ws, None)
+

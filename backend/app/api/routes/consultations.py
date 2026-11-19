@@ -7,7 +7,8 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.future import select
 from sqlalchemy.orm import selectinload
 
-from app.api.dependencies.auth import get_current_doctor
+from app.api.dependencies.auth import get_current_doctor, get_current_doctor_ws
+from fastapi.exceptions import WebSocketException
 from app.api.dependencies.db import get_db
 from app.core.exceptions import ConsultationNotFoundException, PatientNotOwnedException
 from app.core.logger import logger
@@ -129,22 +130,23 @@ async def update_consultation_details(
 async def audio_stream(
     websocket: WebSocket,
     consultation_id: UUID,
+    doctor: Doctor = Depends(get_current_doctor_ws),
     db: AsyncSession = Depends(get_db),
 ):
     """
     WebSocket endpoint for streaming audio directly from the browser's MediaRecorder.
+    Requires doctor authentication and consultation ownership.
     """
-    await websocket.accept()
-    
-    # We fetch the consultation to ensure it exists.
-    # Note: WebSocket doesn't run through the HTTP middleware, so we rely on the 
-    # consultation_id which was just created securely via POST.
-    stmt = select(Consultation).where(Consultation.id == consultation_id)
+    stmt = select(Consultation).where(
+        Consultation.id == consultation_id,
+        Consultation.doctor_id == doctor.id,
+    )
     consultation = await db.scalar(stmt)
     
     if not consultation:
-        await websocket.close(code=status.WS_1008_POLICY_VIOLATION, reason="Consultation not found")
-        return
+        raise WebSocketException(code=status.WS_1008_POLICY_VIOLATION, reason="Consultation not found or unauthorized")
+
+    await websocket.accept()
 
     audio_chunks = bytearray()
     
