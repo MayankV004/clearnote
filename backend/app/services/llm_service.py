@@ -21,16 +21,28 @@ class LLMService:
         messages = SOAP_EXTRACTION_PROMPT.format_messages(transcript=transcript)
         groq_messages = [{"role": m.type if m.type != "human" else "user", "content": m.content} for m in messages]
 
-        logger.info("Calling Groq LLM for SOAP extraction...")
+        logger.info(f"Calling Groq LLM ({settings.GROQ_MODEL}) for SOAP extraction...")
 
         try:
-            response = await self.client.chat.completions.create(
-                messages=groq_messages,
-                model="llama-3.1-8b-instant",
-                response_format={"type": "json_object"},
-                temperature=0.0,
-                max_tokens=2048,
-            )
+            try:
+                response = await self.client.chat.completions.create(
+                    messages=groq_messages,
+                    model=settings.GROQ_MODEL,
+                    response_format={"type": "json_object"},
+                    temperature=0.0,
+                    max_tokens=2048,
+                )
+            except Exception as primary_err:
+                logger.warning(
+                    f"Primary model {settings.GROQ_MODEL} failed: {primary_err}. Falling back to {settings.GROQ_FALLBACK_MODEL}."
+                )
+                response = await self.client.chat.completions.create(
+                    messages=groq_messages,
+                    model=settings.GROQ_FALLBACK_MODEL,
+                    response_format={"type": "json_object"},
+                    temperature=0.0,
+                    max_tokens=2048,
+                )
 
             content = response.choices[0].message.content
             if not content:

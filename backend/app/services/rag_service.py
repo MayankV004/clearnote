@@ -150,17 +150,24 @@ class RAGService:
                 query_text = f"search_query: drug interaction between {drug_a} and {drug_b} in context of {diag_context}"
                 query_embedding = await self.get_embedding(query_text)
 
-                # Cosine similarity search using pgvector `<=>`
-                stmt = select(GuidelineChunk).order_by(
-                    GuidelineChunk.embedding.cosine_distance(query_embedding)
-                ).limit(3)
+                # Cosine similarity search using pgvector `<=>` (with fallback for unsupported dialects)
+                top_chunks = []
+                try:
+                    stmt = select(GuidelineChunk).order_by(
+                        GuidelineChunk.embedding.cosine_distance(query_embedding)
+                    ).limit(3)
+                    result = await db.execute(stmt)
+                    top_chunks = result.scalars().all()
+                except Exception as query_err:
+                    logger.warning(f"Vector search failed or not supported by DB dialect: {query_err}")
+                    top_chunks = []
 
-                result = await db.execute(stmt)
-                top_chunks = result.scalars().all()
-
-                context_str = "\n\n".join(
-                    [f"Source: {c.source} (Page {c.page}):\n{c.content}" for c in top_chunks]
-                )
+                if top_chunks:
+                    context_str = "\n\n".join(
+                        [f"Source: {c.source} (Page {c.page}):\n{c.content}" for c in top_chunks]
+                    )
+                else:
+                    context_str = "No verified clinical guideline documents found in local knowledge base for this pair."
 
                 # Build messages from ChatPromptTemplate
                 messages = DRUG_INTERACTION_PROMPT.format_messages(
@@ -177,7 +184,7 @@ class RAGService:
                 try:
                     response = await self.groq_client.chat.completions.create(
                         messages=groq_messages,
-                        model="llama-3.3-70b-versatile",
+                        model=getattr(settings, "GROQ_MODEL", "llama-3.3-70b-versatile"),
                         response_format={"type": "json_object"},
                         temperature=0.0,
                     )
@@ -186,19 +193,38 @@ class RAGService:
                     # Validated Pydantic output — enforces severity enum + confidence range
                     interaction_result = InteractionResult.model_validate_json(content)
 
+                    # Low-evidence handling: if no local chunks existed, cap confidence and annotate
+                    conf = interaction_result.confidence
+                    guideline_ref = interaction_result.source_reference
+                    if not top_chunks:
+                        conf = min(conf, 0.5)
+                        guideline_ref = f"{guideline_ref} (Unverified in local guidelines)"
+
                     interaction = Interaction(
                         consultation_id=consultation_id,
                         drug_a=drug_a,
                         drug_b=drug_b,
                         severity=interaction_result.severity,
-                        guideline_ref=interaction_result.source_reference,
+                        guideline_ref=guideline_ref,
                         mechanism=interaction_result.mechanism,
                         recommendation=interaction_result.recommendation,
-                        confidence=interaction_result.confidence,
+                        confidence=conf,
                     )
                     db.add(interaction)
                 except Exception as e:
                     logger.error(f"Failed to check interaction for {drug_a} and {drug_b}: {e}")
+                    # Clinical safety fallback: record caution alert requiring manual verification
+                    fallback_interaction = Interaction(
+                        consultation_id=consultation_id,
+                        drug_a=drug_a,
+                        drug_b=drug_b,
+                        severity="MODERATE",
+                        guideline_ref="Automated check unavailable — manual verification required",
+                        mechanism="Interaction analysis could not be completed automatically by AI service.",
+                        recommendation=f"Please manually verify potential interaction between {drug_a} and {drug_b} in clinical formulary (e.g. BNF / Lexicomp).",
+                        confidence=0.0,
+                    )
+                    db.add(fallback_interaction)
 
         await db.commit()
 
