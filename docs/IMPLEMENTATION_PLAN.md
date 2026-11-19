@@ -87,7 +87,7 @@ flowchart TD
 
 ---
 
-### TICKET-03: Enforce Tenant Isolation in Data Deletion Requests
+### [x] TICKET-03: Enforce Tenant Isolation in Data Deletion Requests (COMPLETED)
 - **Priority**: P0 (Blocker / Security)
 - **Gap Reference**: `SEC-04`
 - **Scope**: Enforce doctor ownership when creating data deletion requests in `POST /data-deletion/`.
