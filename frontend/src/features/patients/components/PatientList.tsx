@@ -1,140 +1,350 @@
 "use client";
 
-import { useState } from "react";
+import React, { useState, useMemo } from "react";
 import Link from "next/link";
-import { ChevronRight, Clock, Plus, Users } from "lucide-react";
+import { useRouter } from "next/navigation";
+import {
+  Search,
+  Plus,
+  Mic,
+  ChevronRight,
+  Filter,
+  Clock,
+  Layers,
+} from "lucide-react";
 import { usePatients } from "../api/usePatients";
-import { getInitials, timeAgo } from "@/lib/utils";
-import { SkeletonBox, SkeletonCircle } from "@/components/ui/Skeleton";
-
-// ─── Skeleton ─────────────────────────────────────────────────────────────────
-
-function PatientRowSkeleton() {
-  return (
-    <li className="flex items-center gap-4 px-6 py-4">
-      <SkeletonCircle className="w-10 h-10 flex-shrink-0" />
-      <div className="flex-1 space-y-2">
-        <SkeletonBox className="h-4 w-40" />
-        <SkeletonBox className="h-3 w-28" />
-      </div>
-      <SkeletonBox className="h-3 w-12" />
-      <SkeletonBox className="h-4 w-4" />
-    </li>
-  );
-}
-
-export function PatientListSkeleton() {
-  return (
-    <ul className="divide-y divide-cyan-100/50">
-      {Array.from({ length: 5 }).map((_, i) => (
-        <PatientRowSkeleton key={i} />
-      ))}
-    </ul>
-  );
-}
-
-// ─── PatientList ──────────────────────────────────────────────────────────────
+import type { Patient } from "../types";
+import { Table, Column } from "@/components/ui/Table";
+import { Avatar } from "@/components/ui/Avatar";
+import { Badge } from "@/components/ui/Badge";
+import { Button } from "@/components/ui/Button";
+import { EmptyState, ErrorState } from "@/components/ui/States";
+import { formatDate, timeAgo } from "@/lib/utils";
 
 interface PatientListProps {
   onAddPatient: () => void;
+  onSelectPatient?: (patient: Patient) => void;
 }
 
-export default function PatientList({ onAddPatient }: PatientListProps) {
+export default function PatientList({
+  onAddPatient,
+  onSelectPatient,
+}: PatientListProps) {
+  const router = useRouter();
   const [page, setPage] = useState(1);
-  const pageSize = 8;
-  const { data: patients, isLoading, isError, error } = usePatients(page, pageSize);
+  const pageSize = 10;
+  const { data: patients, isLoading, isError, error, refetch } = usePatients(page, pageSize);
 
-  if (isLoading) return <PatientListSkeleton />;
+  const [searchQuery, setSearchQuery] = useState("");
+  const [consentFilter, setConsentFilter] = useState<"all" | "consented" | "pending">("all");
+  const [isDense, setIsDense] = useState(false);
+  const [sortKey, setSortKey] = useState<string>("name");
+  const [sortDirection, setSortDirection] = useState<"asc" | "desc">("asc");
+
+  // Filter and sort patients
+  const filteredPatients = useMemo(() => {
+    if (!patients) return [];
+    let list = [...patients];
+
+    if (searchQuery.trim()) {
+      const q = searchQuery.toLowerCase();
+      list = list.filter(
+        (p) =>
+          p.name.toLowerCase().includes(q) ||
+          (p.phone && p.phone.toLowerCase().includes(q)) ||
+          (p.email && p.email.toLowerCase().includes(q)) ||
+          p.id.toLowerCase().includes(q)
+      );
+    }
+
+    if (consentFilter === "consented") {
+      list = list.filter((p) => Boolean(p.consent_given_at));
+    } else if (consentFilter === "pending") {
+      list = list.filter((p) => !p.consent_given_at);
+    }
+
+    list.sort((a, b) => {
+      if (sortKey === "name") {
+        return sortDirection === "asc"
+          ? a.name.localeCompare(b.name)
+          : b.name.localeCompare(a.name);
+      }
+      if (sortKey === "created_at") {
+        const timeA = new Date(a.created_at).getTime();
+        const timeB = new Date(b.created_at).getTime();
+        return sortDirection === "asc" ? timeA - timeB : timeB - timeA;
+      }
+      return 0;
+    });
+
+    return list;
+  }, [patients, searchQuery, consentFilter, sortKey, sortDirection]);
+
+  const handleSort = (key: string) => {
+    if (sortKey === key) {
+      setSortDirection((prev) => (prev === "asc" ? "desc" : "asc"));
+    } else {
+      setSortKey(key);
+      setSortDirection("asc");
+    }
+  };
+
+  const columns: Column<Patient & Record<string, unknown>>[] = [
+    {
+      key: "name",
+      header: "Patient",
+      sortable: true,
+      render: (row) => (
+        <div className="flex items-center gap-3">
+          <Avatar name={row.name} size="sm" />
+          <div className="min-w-0">
+            <Link
+              href={`/dashboard/patients/${row.id}`}
+              className="font-semibold text-foreground hover:text-primary transition-colors hover:underline block truncate"
+              onClick={(e) => e.stopPropagation()}
+            >
+              {row.name}
+            </Link>
+            <span className="text-[10px] font-mono text-muted-foreground block truncate">
+              MRN: {row.id.slice(0, 8).toUpperCase()}
+            </span>
+          </div>
+        </div>
+      ),
+    },
+    {
+      key: "demographics",
+      header: "Demographics",
+      render: (row) => (
+        <div className="text-xs">
+          <span className="font-mono text-foreground">
+            {row.age != null ? `${row.age} yrs` : row.dob ? formatDate(row.dob) : "—"}
+          </span>
+          {row.dob && row.age != null && (
+            <span className="text-[10px] text-muted-foreground block font-mono">
+              DOB: {formatDate(row.dob)}
+            </span>
+          )}
+        </div>
+      ),
+    },
+    {
+      key: "contact",
+      header: "Contact Details",
+      render: (row) => (
+        <div className="text-xs min-w-0">
+          <span className="text-foreground block font-mono truncate">
+            {row.phone || "—"}
+          </span>
+          {row.email && (
+            <span className="text-[10px] text-muted-foreground block truncate font-mono">
+              {row.email}
+            </span>
+          )}
+        </div>
+      ),
+    },
+    {
+      key: "consent",
+      header: "HIPAA Status",
+      render: (row) =>
+        row.consent_given_at ? (
+          <Badge variant="primary" size="sm" dot>
+            Consented
+          </Badge>
+        ) : (
+          <Badge variant="warning" size="sm">
+            Pending
+          </Badge>
+        ),
+    },
+    {
+      key: "created_at",
+      header: "Registered",
+      sortable: true,
+      render: (row) => (
+        <div className="text-xs">
+          <span className="text-foreground block font-mono">
+            {formatDate(row.created_at)}
+          </span>
+          <span className="text-[10px] text-muted-foreground flex items-center gap-1 font-mono">
+            <Clock className="w-2.5 h-2.5" />
+            {timeAgo(row.created_at)}
+          </span>
+        </div>
+      ),
+    },
+    {
+      key: "actions",
+      header: "Action",
+      className: "text-right",
+      render: (row) => (
+        <div className="flex items-center justify-end gap-1.5" onClick={(e) => e.stopPropagation()}>
+          {onSelectPatient && (
+            <Button
+              variant="outline"
+              size="xs"
+              onClick={() => onSelectPatient(row)}
+              className="text-xs"
+              title="Record Consultation"
+            >
+              <Mic className="w-3 h-3 mr-1 text-primary" />
+              Record
+            </Button>
+          )}
+          <Link
+            href={`/dashboard/patients/${row.id}`}
+            className="inline-flex items-center gap-1 px-2.5 py-1 rounded-[var(--radius-xs)] border border-border bg-card text-foreground text-xs font-semibold hover:bg-muted transition-colors"
+          >
+            Chart
+            <ChevronRight className="w-3 h-3 text-muted-foreground" />
+          </Link>
+        </div>
+      ),
+    },
+  ];
 
   if (isError) {
     return (
-      <div className="flex h-40 items-center justify-center p-6 text-center">
-        <div>
-          <p className="font-semibold text-rose-700">Error loading patients</p>
-          <p className="mt-1 text-sm text-rose-600">
-            {error instanceof Error ? error.message : "Something went wrong."}
-          </p>
-        </div>
-      </div>
-    );
-  }
-
-  const patientItems = patients ?? [];
-
-  if (patientItems.length === 0 && page === 1) {
-    return (
-      <div className="flex flex-col items-center justify-center py-16 text-center px-6">
-        <div className="w-16 h-16 rounded-3xl bg-white/50 flex items-center justify-center mb-5 border border-cyan-100/50 shadow-sm">
-          <Users className="w-8 h-8 text-cyan-400" />
-        </div>
-        <h3 className="font-bold text-slate-700 text-lg">No patients yet</h3>
-        <p className="mt-2 text-sm text-slate-500 max-w-xs leading-relaxed">
-          Add your first patient to get started with AI-powered consultations and notes.
-        </p>
-        <button
-          onClick={onAddPatient}
-          className="mt-6 inline-flex items-center gap-2 px-6 py-2.5 rounded-full bg-brand-teal text-white text-sm font-semibold hover:from-cyan-500 hover:to-green-500 transition-all shadow-sm hover:shadow-md hover:-translate-y-0.5"
-        >
-          <Plus className="w-4 h-4" /> Add First Patient
-        </button>
+      <div className="p-4 sm:p-6 bg-card border border-border rounded-[var(--radius-md)]">
+        <ErrorState
+          title="Failed to Load Clinical Roster"
+          message={error instanceof Error ? error.message : "Unable to retrieve patient roster from database."}
+          onRetry={() => refetch()}
+        />
       </div>
     );
   }
 
   return (
-    <div>
-      <ul className="divide-y divide-cyan-100/50">
-        {patientItems.map((patient) => (
-          <li key={patient.id}>
-            <Link
-              href={`/dashboard/patients/${patient.id}`}
-              className="flex items-center gap-4 px-6 py-4 hover:bg-white/30 transition-all duration-200 group"
+    <div className="bg-card border border-border rounded-[var(--radius-md)] shadow-xs overflow-hidden">
+      {/* Table Toolbar */}
+      <div className="p-3 sm:p-4 border-b border-border bg-card flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3">
+        {/* Search Input */}
+        <div className="relative flex-1 max-w-sm">
+          <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-muted-foreground" />
+          <input
+            type="text"
+            value={searchQuery}
+            onChange={(e) => setSearchQuery(e.target.value)}
+            placeholder="Search roster by patient name, phone, or MRN..."
+            className="w-full h-8 pl-8 pr-3 text-xs rounded-[var(--radius-sm)] border border-input bg-background text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-1 focus:ring-ring"
+            aria-label="Search patient roster"
+          />
+        </div>
+
+        {/* Filter Controls & Dense Mode */}
+        <div className="flex items-center gap-2 self-end sm:self-center">
+          <div className="flex items-center gap-1 border border-border rounded-[var(--radius-sm)] p-0.5 bg-muted/40">
+            <Filter className="w-3 h-3 text-muted-foreground ml-1.5 mr-0.5" />
+            <select
+              value={consentFilter}
+              onChange={(e) =>
+                setConsentFilter(e.target.value as "all" | "consented" | "pending")
+              }
+              className="h-6 text-xs bg-transparent text-foreground border-none focus:outline-none cursor-pointer pr-1"
+              aria-label="Filter by HIPAA consent status"
             >
-              <div className="w-10 h-10 rounded-full bg-cyan-100 text-cyan-700 text-sm font-bold flex items-center justify-center flex-shrink-0 shadow-sm">
-                {getInitials(patient.name)}
-              </div>
+              <option value="all">All Patients</option>
+              <option value="consented">Consented</option>
+              <option value="pending">Pending Consent</option>
+            </select>
+          </div>
 
-              <div className="flex-1 min-w-0">
-                <p className="font-semibold text-slate-900 truncate group-hover:text-cyan-700 transition-colors">
-                  {patient.name}
-                </p>
-                <p className="text-xs text-slate-500 mt-0.5 truncate">
-                  {[patient.phone, patient.email].filter(Boolean).join(" · ") ||
-                    "No contact info"}
-                </p>
-              </div>
-
-              <div className="text-right flex-shrink-0">
-                <div className="flex items-center gap-1 text-xs text-slate-400 font-medium">
-                  <Clock className="w-3.5 h-3.5" />
-                  {timeAgo(patient.created_at)}
-                </div>
-              </div>
-
-              <ChevronRight className="w-4 h-4 text-cyan-300 group-hover:text-cyan-600 transition-colors flex-shrink-0 group-hover:translate-x-0.5" />
-            </Link>
-          </li>
-        ))}
-      </ul>
-
-      {/* Pagination Controls */}
-      {(page > 1 || patientItems.length === pageSize) && (
-        <div className="flex items-center justify-between px-6 py-3 border-t border-cyan-100/50 bg-slate-50/50">
           <button
-            onClick={() => setPage((p) => Math.max(1, p - 1))}
-            disabled={page === 1}
-            className="text-xs font-semibold px-3 py-1.5 rounded-lg border border-slate-200 bg-white text-slate-700 hover:bg-slate-50 disabled:opacity-40 disabled:cursor-not-allowed transition-all"
+            type="button"
+            onClick={() => setIsDense(!isDense)}
+            className={`p-1.5 rounded-[var(--radius-sm)] border text-xs transition-colors ${
+              isDense
+                ? "bg-accent text-accent-foreground border-border"
+                : "border-border text-muted-foreground hover:bg-muted hover:text-foreground"
+            }`}
+            title="Toggle compact table density"
+            aria-label="Toggle compact view"
           >
-            Previous
+            <Layers className="w-3.5 h-3.5" />
           </button>
-          <span className="text-xs text-slate-500 font-medium">Page {page}</span>
-          <button
-            onClick={() => setPage((p) => p + 1)}
-            disabled={patientItems.length < pageSize}
-            className="text-xs font-semibold px-3 py-1.5 rounded-lg border border-slate-200 bg-white text-slate-700 hover:bg-slate-50 disabled:opacity-40 disabled:cursor-not-allowed transition-all"
-          >
-            Next
-          </button>
+
+          <Button size="xs" onClick={onAddPatient} className="text-xs">
+            <Plus className="w-3 h-3 mr-1" />
+            New Patient
+          </Button>
+        </div>
+      </div>
+
+      {/* Main Table / Skeletons / Empty */}
+      {isLoading ? (
+        <Table
+          columns={columns}
+          data={[]}
+          keyExtractor={(row) => row.id}
+          isLoading={true}
+          dense={isDense}
+        />
+      ) : filteredPatients.length === 0 ? (
+        <div className="p-8">
+          <EmptyState
+            title={searchQuery || consentFilter !== "all" ? "No Matching Patients" : "No Patients Enrolled Yet"}
+            description={
+              searchQuery || consentFilter !== "all"
+                ? "Try adjusting your search criteria or clearing active filters to view other patient charts."
+                : "Your practice roster is currently empty. Register your first patient to begin documenting consultations."
+            }
+            action={
+              searchQuery || consentFilter !== "all"
+                ? {
+                    label: "Clear Filters",
+                    onClick: () => {
+                      setSearchQuery("");
+                      setConsentFilter("all");
+                    },
+                  }
+                : {
+                    label: "Add First Patient",
+                    onClick: onAddPatient,
+                  }
+            }
+          />
+        </div>
+      ) : (
+        <Table
+          columns={columns}
+          data={filteredPatients as (Patient & Record<string, unknown>)[]}
+          keyExtractor={(row) => row.id}
+          sortColumn={sortKey}
+          sortDirection={sortDirection}
+          onSort={handleSort}
+          dense={isDense}
+          onRowClick={(row) => router.push(`/dashboard/patients/${row.id}`)}
+        />
+      )}
+
+      {/* Pagination Footer */}
+      {!isLoading && (patients?.length ?? 0) > 0 && (
+        <div className="flex items-center justify-between px-4 py-2.5 border-t border-border bg-card/60 text-xs text-muted-foreground">
+          <span className="font-mono text-[11px]">
+            Showing {filteredPatients.length} patient record{filteredPatients.length === 1 ? "" : "s"}
+          </span>
+
+          <div className="flex items-center gap-2">
+            <Button
+              variant="outline"
+              size="xs"
+              onClick={() => setPage((p) => Math.max(1, p - 1))}
+              disabled={page === 1}
+            >
+              Previous
+            </Button>
+            <span className="font-mono text-[11px] px-1">Page {page}</span>
+            <Button
+              variant="outline"
+              size="xs"
+              onClick={() => setPage((p) => p + 1)}
+              disabled={(patients?.length ?? 0) < pageSize}
+            >
+              Next
+            </Button>
+          </div>
         </div>
       )}
     </div>

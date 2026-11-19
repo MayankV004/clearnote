@@ -3,42 +3,32 @@
 import { useEffect } from "react";
 import { useUser, useAuth } from "@clerk/nextjs";
 import { useRouter } from "next/navigation";
-import { OfflineBanner } from "@/components/ui/OfflineBanner";
+import { AppShell } from "@/components/shell/AppShell";
 
 // ─── Route-agnostic loading skeleton ─────────────────────────────────────────
 //
 // This shows while Clerk initializes (~200-400ms on every page load).
 // Clerk is a client-side auth library — it must run JavaScript and verify
-// the session cookie before it knows who the user is. This delay is inherent
-// and cannot be avoided. This skeleton prevents the black flash that occurred
-// when the layout returned null during that window.
+// the session cookie before it knows who the user is. This skeleton prevents
+// the black or unstyled flash during that window.
 //
-// IMPORTANT: This skeleton is intentionally minimal and route-agnostic.
-// It only renders the sticky navbar (which is shared by ALL routes under
-// (site)/). The page content area is left as the bg-slate-50 background
-// because each page already renders its own component-level skeletons once
-// it mounts (StatCardSkeleton, PatientListSkeleton, etc.).
-//
-// Do NOT put dashboard-specific content here — this layout wraps:
-//   /dashboard, /dashboard/patients/[id], and any future routes.
-
 function AuthLoadingSkeleton() {
   return (
-    <div className="min-h-screen bg-slate-50">
-      {/* Navbar — the one element shared by every route under (site)/ */}
-      <div className="sticky top-0 z-40 bg-white border-b border-slate-200">
-        <div className="mx-auto max-w-screen-2xl px-6 py-3.5 flex items-center justify-between">
-          <div className="flex items-center gap-2.5">
-            <div className="h-9 w-9 rounded-xl bg-slate-200 animate-pulse" />
-            <div className="h-5 w-24 rounded bg-slate-200 animate-pulse" />
-          </div>
+    <div className="min-h-screen bg-background text-foreground">
+      {/* Top Navbar skeleton matching AppShell dimensions */}
+      <div className="sticky top-0 z-40 border-b border-border bg-card/90 backdrop-blur-md">
+        <div className="mx-auto max-w-7xl px-4 sm:px-6 h-14 flex items-center justify-between">
           <div className="flex items-center gap-3">
-            <div className="h-9 w-28 rounded-full bg-slate-200 animate-pulse hidden sm:block" />
-            <div className="h-9 w-9 rounded-full bg-slate-200 animate-pulse" />
+            <div className="w-7 h-7 rounded-[var(--radius-xs)] bg-muted animate-pulse" />
+            <div className="h-4 w-24 rounded-[var(--radius-xs)] bg-muted animate-pulse" />
+          </div>
+          <div className="flex items-center gap-2.5">
+            <div className="h-8 w-48 rounded-[var(--radius-sm)] bg-muted animate-pulse hidden md:block" />
+            <div className="h-8 w-8 rounded-[var(--radius-sm)] bg-muted animate-pulse" />
+            <div className="h-8 w-24 rounded-[var(--radius-sm)] bg-muted animate-pulse" />
           </div>
         </div>
       </div>
-      {/* Content: just the background. Each page renders its own skeleton. */}
     </div>
   );
 }
@@ -89,16 +79,7 @@ export default function SiteLayout({ children }: { children: React.ReactNode }) 
     checkOnboarding();
   }, [isLoaded, user, router, getToken]);
 
-  // Show a minimal route-agnostic skeleton while Clerk verifies the session.
-  // This is unavoidable with client-side auth (~200-400ms on every reload).
-  // The skeleton only shows the shared navbar — each page handles its own
-  // content-level skeleton independently.
   if (!isLoaded || !user) return <AuthLoadingSkeleton />;
 
-  return (
-    <>
-      <OfflineBanner />
-      {children}
-    </>
-  );
+  return <AppShell>{children}</AppShell>;
 }

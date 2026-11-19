@@ -6,6 +6,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 ### Phase B: Page Redesigns
+- **Ticket 2: App Shell & Clinical Encounters Roster (`/dashboard`)**: Overhauled the central clinical dashboard and global app shell. Replaced Anime.js liquid blobs and rounded-[2rem] styling with the Quiet Confidence design system. Features unified `<AppShell />` with global Cmd+K command palette, responsive mobile navigation, theme toggle, and skip-to-content links. Implemented 4-metric daily clinical overview with `<AnimatedNumber />`, real-time searchable/filterable/sortable patient encounters `<Table />` with dense mode toggle and mobile stacked-card pattern, clinician shortcuts (hotkeys N and R), attending physician credentials card, and accessible modal dialogs for patient creation and visit initiation.
 - **Ticket 1: Clinical Authentication & SSO (`/sign-in`, `/sign-up`)**: Overhauled authentication layout into a modern two-column clinical gateway. Replaced Anime.js liquid blobs and gradients with a serene high-contrast structure featuring system security credentials, BAA assurances, cryptographic encryption indicators, and customized Clerk authentication components adhering to ClearNote design tokens. Verified across light and dark modes with WCAG 2.2 AAA text contrast.
 
 ### Phase A: Design System Foundation & Component Gallery

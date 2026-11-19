@@ -1,24 +1,27 @@
 "use client";
 
+import React from "react";
 import { useUser } from "@clerk/nextjs";
 import { useDoctor } from "@/features/doctor/api/useDoctor";
-import { SkeletonBox, SkeletonCircle } from "@/components/ui/Skeleton";
+import { Skeleton } from "@/components/ui/Skeleton";
+import { Badge } from "@/components/ui/Badge";
+import { Stethoscope } from "lucide-react";
 
 // ─── Skeleton ─────────────────────────────────────────────────────────────────
 
 function WelcomeBannerSkeleton() {
   return (
-    <section className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+    <section className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-2 border-b border-border/40">
       <div className="space-y-2">
-        <SkeletonBox className="h-3.5 w-40" />
-        <SkeletonBox className="h-8 w-56" />
-        <SkeletonBox className="h-3.5 w-48" />
+        <Skeleton className="h-4 w-32" />
+        <Skeleton className="h-7 w-64" />
+        <Skeleton className="h-4 w-44" />
       </div>
-      <div className="flex items-center gap-3 bg-white border border-slate-200 rounded-2xl px-5 py-3 shadow-sm">
-        <SkeletonCircle className="w-10 h-10" />
+      <div className="flex items-center gap-3 bg-card border border-border rounded-[var(--radius-md)] px-4 py-2.5 shadow-xs">
+        <Skeleton className="w-9 h-9 rounded-[var(--radius-sm)]" />
         <div className="space-y-1.5">
-          <SkeletonBox className="h-4 w-28" />
-          <SkeletonBox className="h-3 w-20" />
+          <Skeleton className="h-3.5 w-24" />
+          <Skeleton className="h-3 w-16" />
         </div>
       </div>
     </section>
@@ -27,11 +30,6 @@ function WelcomeBannerSkeleton() {
 
 // ─── WelcomeBanner ────────────────────────────────────────────────────────────
 
-/**
- * Greeting + date row at the top of the dashboard.
- * Fetches doctor profile for clinic name and specialty badge.
- * Shows skeleton while the doctor profile loads.
- */
 export function WelcomeBanner() {
   const { user, isLoaded } = useUser();
   const { data: doctor, isLoading } = useDoctor();
@@ -48,36 +46,43 @@ export function WelcomeBanner() {
   if (isLoading) return <WelcomeBannerSkeleton />;
 
   return (
-    <section className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+    <section className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-2 border-b border-border/40">
       <div>
-        <p className="text-sm font-medium text-teal-600 mb-0.5">
-          {greeting}, {doctorName}
-        </p>
-        <h1 className="text-2xl font-extrabold text-slate-900">
-          {doctor?.clinic_name ? `${doctor.clinic_name} Dashboard` : "Your Dashboard"}
+        <div className="flex items-center gap-2 mb-1">
+          <span className="text-xs font-semibold text-primary uppercase tracking-wider font-mono">
+            {greeting}, {doctorName}
+          </span>
+          <span className="text-muted-foreground">•</span>
+          <span className="text-xs text-muted-foreground font-mono">
+            {new Date().toLocaleDateString("en-US", {
+              weekday: "short",
+              month: "short",
+              day: "numeric",
+              year: "numeric",
+            })}
+          </span>
+        </div>
+        <h1 className="text-2xl sm:text-3xl font-bold tracking-tight text-foreground">
+          {doctor?.clinic_name ? doctor.clinic_name : "Clinical Overview"}
         </h1>
-        <p className="mt-1 text-slate-500 text-sm">
-          {new Date().toLocaleDateString("en-IN", {
-            weekday: "long",
-            day: "numeric",
-            month: "long",
-            year: "numeric",
-          })}
-        </p>
       </div>
 
       {doctor && (
-        <div className="flex items-center gap-3 bg-white border border-slate-200 rounded-2xl px-5 py-3 shadow-sm">
-          <div className="w-10 h-10 rounded-full bg-teal-100 text-teal-700 font-bold text-sm flex items-center justify-center">
-            {user?.firstName?.[0]?.toUpperCase() ?? "D"}
+        <div className="flex items-center gap-3 bg-card border border-border rounded-[var(--radius-md)] px-3.5 py-2 shadow-xs">
+          <div className="w-8 h-8 rounded-[var(--radius-sm)] bg-primary/10 text-primary flex items-center justify-center font-bold text-xs">
+            <Stethoscope className="w-4 h-4" />
           </div>
           <div>
-            <p className="text-sm font-bold text-slate-900">
-              {doctor.speciality ?? "General Practice"}
-            </p>
-            <p className="text-xs text-slate-500">
+            <div className="flex items-center gap-1.5">
+              <span className="text-xs font-bold text-foreground">
+                {doctor.speciality ?? "General Practice"}
+              </span>
+              <Badge variant="primary" size="sm">Active</Badge>
+            </div>
+            <p className="text-[11px] text-muted-foreground font-mono mt-0.5">
+              {doctor.license_no ? `Lic. #${doctor.license_no}` : "Verified Clinician"}
               {doctor.years_of_experience != null
-                ? `${doctor.years_of_experience} yrs experience`
+                ? ` • ${doctor.years_of_experience}y exp`
                 : ""}
             </p>
           </div>

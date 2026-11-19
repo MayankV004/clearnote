@@ -72,7 +72,11 @@ export function CommandPalette({
       shortcut: "R",
       perform: () => {
         onClose();
-        onStartConsultation?.();
+        if (onStartConsultation) {
+          onStartConsultation();
+        } else {
+          window.dispatchEvent(new CustomEvent("clearnote:open-record"));
+        }
       },
     },
     {
@@ -83,7 +87,11 @@ export function CommandPalette({
       shortcut: "N",
       perform: () => {
         onClose();
-        onAddPatient?.();
+        if (onAddPatient) {
+          onAddPatient();
+        } else {
+          window.dispatchEvent(new CustomEvent("clearnote:open-add-patient"));
+        }
       },
     },
     {
