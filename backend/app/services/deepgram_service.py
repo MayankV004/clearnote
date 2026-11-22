@@ -58,7 +58,7 @@ class DeepgramService:
         result = await deepgram_service.transcribe_audio(audio_bytes)
     """
 
-    # Model to use – nova-2-medical gives the best accuracy for clinical content
+    # Model to use – nova-3-medical gives the best accuracy for clinical content
     MODEL = "nova-3-medical"
 
     def __init__(self) -> None:

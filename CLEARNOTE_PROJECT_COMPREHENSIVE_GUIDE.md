@@ -13,7 +13,7 @@ In modern healthcare systems, administrative documentation is the leading driver
 
 ### 1.2 The ClearNote Solution
 **ClearNote** is an enterprise-grade, ambient clinical documentation platform and medical workflow system engineered to eliminate manual documentation while enforcing pharmaceutical safety guardrails:
-* **Ambient Voice-to-Record**: ClearNote captures clinical encounters in-browser (or via audio upload), streams audio through medical-tuned speech recognition (**Deepgram Nova-2**), and executes structured clinical extraction via high-throughput LLMs (**Groq Cloud Llama 3.3 70B Versatile**) into standardized **SOAP notes** (Subjective, Objective, Assessment, Plan), **ICD-10 coded diagnoses**, and **structured medication regimens**.
+* **Ambient Voice-to-Record**: ClearNote captures clinical encounters in-browser (or via audio upload), streams audio through medical-tuned speech recognition (**Deepgram Nova-3 Medical** / `nova-3-medical`), and executes structured clinical extraction via high-throughput LLMs (**Groq Cloud Llama 3.3 70B Versatile**) into standardized **SOAP notes** (Subjective, Objective, Assessment, Plan), **ICD-10 coded diagnoses**, and **structured medication regimens**.
 * **Clinical Guideline RAG Safety Engine**: Powered by **Google Gemini embeddings** and **PostgreSQL `pgvector`** with **HNSW approximate nearest neighbor indexing** on NeonDB Serverless. It automatically calculates the pairwise Cartesian product ($\binom{N}{2}$) of prescribed medications and evaluates them against clinical practice guidelines (WHO/ICMR), flagging drug-drug interactions with clinical mechanism descriptions, actionable recommendations, source page citations, and confidence scores.
 * **Human-in-the-Loop Clinical Review**: Adheres to strict medical safety governance: consultations transition to `AWAITING_REVIEW`, presenting clinicians with an interactive split-screen reviewer with explicit provenance tracking (`[AI Draft]` vs `[Clinician Verified]`) and mandatory acknowledgment of critical contraindications before cryptographic sign-off is unlocked.
 * **Closed-Loop Fulfillment**: Renders 21 CFR Part 11 compliant PDF prescriptions stamped with physician credentials, state license numbers, and digital signatures (via **WeasyPrint** & **Jinja2**), uploads them to encrypted AWS S3 buckets (SSE-S3 AES-256), serves them via expiring pre-signed URLs, and triggers automated SMS dosage reminders via **Twilio** and email dispatch via **SendGrid**.
@@ -36,7 +36,7 @@ In modern healthcare systems, administrative documentation is the leading driver
 | **Database & ORM** | **PostgreSQL (NeonDB Serverless), SQLAlchemy 2.0 (Async), `asyncpg`** | Async connection pooling, schema migrations via **Alembic**, connection-level settings for Row-Level Security (RLS), branching database workflow. |
 | **Vector Database & Search** | **PostgreSQL `pgvector` with HNSW Indexing** | 768-dimensional vector storage, Hierarchical Navigable Small World (`idx_guideline_chunks_embedding_hnsw`, `m=16`, `ef_construction=64`) cosine distance (`<=>`) traversal. |
 | **Caching Layer** | **Upstash Redis (Serverless REST API)** | Cache-aside pattern for doctor sessions, consultation lists, and dashboard stats; reduces read latency from 150–200 ms to 5–10 ms. |
-| **Speech-to-Text (STT)** | **Deepgram Nova-2 / Whisper** | Medical-tuned speech recognition handling multi-speaker consultation audio, noisy clinical environments, and pharmaceutical terminology. |
+| **Speech-to-Text (STT)** | **Deepgram Nova-3 Medical (`nova-3-medical`)** | State-of-the-art medical speech recognition handling multi-speaker consultation audio, noisy clinical environments, and pharmaceutical terminology with industry-leading Word Error Rate (WER). |
 | **LLM Inference** | **Groq Cloud API (`llama-3.3-70b-versatile`)** | Ultra-low latency (~250–300 tokens/sec) deterministic JSON extraction (temperature 0.0) of SOAP notes, ICD-10 codes, and medications, with automatic fallback to `llama-3.1-8b-instant`. |
 | **Embeddings** | **Google Gemini API (`embedding-001`)** | 768-dimensional clinical guideline embedding for high-semantic-density medical literature. |
 | **Document Processing & PDF** | **`pdfplumber`, LangChain Text Splitters, `WeasyPrint`, Jinja2** | High-fidelity multi-column PDF extraction; semantic recursive splitting (chunk size 800, overlap 150); HTML/CSS to vector PDF rendering for doctor prescriptions. |
@@ -44,7 +44,7 @@ In modern healthcare systems, administrative documentation is the leading driver
 | **Authentication & IAM** | **Clerk, Svix Webhooks** | Multi-Factor Authentication (TOTP MFA), social OAuth, asymmetric RS256 JWT validation via JWKS, webhook synchronization. |
 | **Notifications** | **Twilio SMS API, SendGrid Email API** | Automated SMS dosage reminders to patient phone numbers; secure transactional prescription download delivery via email. |
 | **Security & Resilience** | **SlowAPI, Starlette Middleware** | IP-based rate limiting (60 req/min), automated audit logging to Postgres, HTTP security headers (HSTS, CSP, X-Frame-Options), S3 cascade erasure pipeline. |
-| **Testing & Quality** | **Pytest, `pytest-asyncio`, Playwright** | 75 backend unit/integration tests running in 0.75s; automated Clinical Golden Benchmark evaluation suite (F1/Precision/Recall); Playwright E2E browser test suite. |
+| **Testing & Quality** | **Pytest, `pytest-asyncio`, Playwright** | 115 backend unit/integration tests running in ~1.2s; automated Clinical Golden Benchmark evaluation suite (F1/Precision/Recall); Playwright E2E browser test suite. |
 
 ---
 
@@ -92,7 +92,7 @@ In modern healthcare systems, administrative documentation is the leading driver
 |                                                                                                    |
 |  [ Step A: Streaming / Audio Capture ]                                                             |
 |  WebSocket /consultations/{id}/stream -> tempfile.SpooledTemporaryFile (max_size=5MB)              |
-|  asyncio.to_thread -> S3 Encrypted Upload -> Deepgram Nova-2 Medical STT Diarization              |
+|  asyncio.to_thread -> S3 Encrypted Upload -> Deepgram Nova-3 Medical (`nova-3-medical`) STT        |
 |                                                                                                    |
 |  [ Step B: Structured SOAP & Diagnostic Extraction ]                                                |
 |  Groq LLM (Llama 3.3 70B, temp 0.0) [Fallback: Llama 3.1 8B] -> SOAP Note + ICD-10 + Medications |
@@ -169,7 +169,7 @@ The lifecycle of a consultation in ClearNote follows a strict, asynchronous stat
 3. **Audio Capture & Spooled Ingestion**: Audio chunks stream over WebSocket or multipart HTTP. To prevent memory exhaustion during long consultations, audio streams into a `tempfile.SpooledTemporaryFile(max_size=5MB)`, automatically spilling to temporary disk storage once resident memory exceeds 5MB. Upon completion, the file is uploaded to AWS S3 using Python 3.12 `asyncio.to_thread(boto3_client.upload_fileobj)`.
 4. **Asynchronous Background Processing**:
    - Background worker transitions status to `PROCESSING`.
-   - Audio is transcribed via Deepgram Nova-2 with medical terminology tuning.
+   - Audio is transcribed via Deepgram Nova-3 Medical (`nova-3-medical`) with medical terminology and diarization tuning.
    - Raw transcript is processed by Groq Cloud (`llama-3.3-70b-versatile`) under a zero-temperature clinical prompt, extracting Subjective, Objective, Assessment, Plan, ICD-10 diagnosis codes, and medication regimens. Automatic fallback to `llama-3.1-8b-instant` ensures resilience during provider rate-limits.
    - The RAG safety service computes pairwise drug combinations, searches `pgvector` via the HNSW index, prompts Groq with cited context, and inserts `Interaction` records. If no local guidelines match, confidence is strictly capped at $\le 0.5$.
    - Status transitions to `AWAITING_REVIEW`. Redis cache keys are purged.
@@ -354,7 +354,7 @@ The database uses PostgreSQL (hosted on NeonDB Serverless) utilizing UUID primar
 ClearNote incorporates multi-layer automated verification spanning unit tests, integration tests, clinical golden benchmark evaluations, and end-to-end browser tests:
 
 ### 8.1 Backend Unit & Integration Test Suite (`pytest`)
-* **75 Unit & Integration Tests**: 100% pass rate in **0.75 seconds**.
+* **115 Unit & Integration Tests**: 100% pass rate in **~1.2 seconds**.
 * **Test Isolation**: SQLite in-memory asynchronous database (`sqlite+aiosqlite:///:memory:`) combined with strict mock factories (`unittest.mock.AsyncMock`), guaranteeing zero network or live API token dependencies during CI/CD.
 * **Coverage Scope**: Route status codes, Clerk JWKS validation, consultation state machine, Deepgram payload parsing, Groq JSON schema adherence, pairwise RAG vector queries, and error handling fallbacks.
 
@@ -387,13 +387,13 @@ Use these tailored bullet points, architectural summaries, and project descripti
 ### 9.1 High-Impact Resume Bullet Points (Google / XYZ Formula)
 
 #### Option 1: Emphasizing Full-Stack, AI & RAG Engineering
-* **Architected ClearNote**, an ambient clinical documentation platform converting doctor-patient audio into structured SOAP notes and ICD-10 diagnoses using **Deepgram Nova-2** and **Groq Cloud (Llama 3.3 70B)** at ~250 tokens/sec.
+* **Architected ClearNote**, an ambient clinical documentation platform converting doctor-patient audio into structured SOAP notes and ICD-10 diagnoses using **Deepgram Nova-3 Medical** (`nova-3-medical`) and **Groq Cloud (Llama 3.3 70B)** at ~250 tokens/sec.
 * **Engineered a RAG clinical safety engine** using **Google Gemini embeddings** and **PostgreSQL `pgvector` with HNSW indexing** over WHO/ICMR clinical guidelines; calculated pairwise drug combinations ($\binom{N}{2}$) to intercept drug-drug interactions with cited page references and confidence scores.
 * **Enforced human-in-the-loop review governance** via an asynchronous state machine (`PENDING` $\rightarrow$ `PROCESSING` $\rightarrow$ `AWAITING_REVIEW` $\rightarrow$ `COMPLETE`), featuring provenance badges (`[AI Draft]` vs `[Clinician Verified]`) and gated physician approval before prescription dispatch.
 * **Engineered high-performance async backend** with **FastAPI**, **SQLAlchemy 2.0 (Async)**, and **NeonDB Serverless Postgres**, implementing an **Upstash Redis cache-aside pattern** that cut API read latency by **95%** (from 180 ms to <10 ms).
 * **Built closed-loop prescription engine** using **WeasyPrint** and Jinja2 to render 21 CFR Part 11 compliant PDF prescriptions with digital signatures stored on **AWS S3** via expiring pre-signed URLs, integrating **Twilio SMS** for automated dosage reminders.
 * **Designed modern clinical frontend** using **Next.js 16 (App Router)**, **React 19**, and **Tailwind CSS v4** featuring the **Plus Jakarta Sans** and **JetBrains Mono** font stack, a hardware-accelerated collapsible sidebar, and full WCAG 2.2 AAA accessibility.
-* **Authored comprehensive test suites** spanning 75 `pytest-asyncio` tests (0.75s runtime), automated Clinical Golden Benchmark evaluations (Medication Recall $\ge 95\%$, Allergy Recall = $100\%$), and Playwright E2E browser tests.
+* **Authored comprehensive test suites** spanning 115 `pytest-asyncio` tests (~1.2s runtime), automated Clinical Golden Benchmark evaluations (Medication Recall $\ge 95\%$, Allergy Recall = $100\%$), and Playwright E2E browser tests.
 
 #### Option 2: Emphasizing Backend, Systems & Cloud Infrastructure
 * **Built scalable, async healthcare backend in Python 3.12 (FastAPI, Uvicorn, asyncpg)** supporting ambient consultation recording, asynchronous worker pipelines, and automated document generation.
@@ -414,9 +414,9 @@ Use these tailored bullet points, architectural summaries, and project descripti
 
 ```markdown
 **ClearNote — Ambient AI Clinical Documentation & Safety Platform**
-*Tech Stack: Next.js 16, React 19, TypeScript, Tailwind CSS v4, Plus Jakarta Sans, FastAPI, Python 3.12, PostgreSQL (NeonDB), pgvector (HNSW), Upstash Redis, AWS S3, Groq (Llama 3.3 70B), Deepgram, Google Gemini, Clerk, WeasyPrint, Twilio*
+*Tech Stack: Next.js 16, React 19, TypeScript, Tailwind CSS v4, Plus Jakarta Sans, FastAPI, Python 3.12, PostgreSQL (NeonDB), pgvector (HNSW), Upstash Redis, AWS S3, Groq (Llama 3.3 70B), Deepgram Nova-3 Medical, Google Gemini, Clerk, WeasyPrint, Twilio*
 
-ClearNote is an enterprise ambient clinical intelligence assistant that converts doctor-patient voice consultations into structured medical records in real time. It transcribes audio via Deepgram Nova-2, extracts structured SOAP notes and ICD-10 coded diagnoses via Groq Llama 3.3 70B (temp 0.0), and runs an automated RAG safety pipeline over WHO/ICMR clinical guidelines stored in PostgreSQL `pgvector` with HNSW indexing to flag drug-drug interactions with cited clinical mechanisms. The platform features an Upstash Redis cache-aside layer (sub-10ms reads), WeasyPrint PDF prescription generation, AWS S3 encrypted storage with asyncio thread offloading, Clerk MFA authentication, PostgreSQL Row-Level Security, a collapsible "Quiet Confidence" clinical interface, and Twilio SMS dosage alerts.
+ClearNote is an enterprise ambient clinical intelligence assistant that converts doctor-patient voice consultations into structured medical records in real time. It transcribes audio via Deepgram Nova-3 Medical (`nova-3-medical`), extracts structured SOAP notes and ICD-10 coded diagnoses via Groq Llama 3.3 70B (temp 0.0), and runs an automated RAG safety pipeline over WHO/ICMR clinical guidelines stored in PostgreSQL `pgvector` with HNSW indexing to flag drug-drug interactions with cited clinical mechanisms. The platform features an Upstash Redis cache-aside layer (sub-10ms reads), WeasyPrint PDF prescription generation, AWS S3 encrypted storage with asyncio thread offloading, Clerk MFA authentication, PostgreSQL Row-Level Security, a collapsible "Quiet Confidence" clinical interface, and Twilio SMS dosage alerts.
 ```
 
 ---
@@ -442,7 +442,7 @@ ClearNote is an enterprise ambient clinical intelligence assistant that converts
 > **Answer**: 
 > *"When the doctor finishes recording, incoming audio chunks are buffered via `tempfile.SpooledTemporaryFile(max_size=5MB)`. This keeps memory consumption under 5MB regardless of consultation duration, rolling over to disk for long visits. The file is uploaded to AWS S3 using Python 3.12 `asyncio.to_thread(boto3_client.upload_fileobj)` to prevent blocking the ASGI event loop.
 > The consultation record is marked PENDING and an async task is scheduled via FastAPI's `BackgroundTasks`. The HTTP request returns immediately with a 200 OK and consultation ID.
-> The background worker executes independently: transitions status to PROCESSING, downloads from S3, streams audio to Deepgram Nova-2, invokes Groq for SOAP extraction, runs pgvector HNSW pairwise RAG checks, persists entities to PostgreSQL, transitions status to AWAITING_REVIEW, and purges Redis cache keys. The doctor reviews the AI extraction, acknowledges warnings, and approves before the record is marked COMPLETE."*
+> The background worker executes independently: transitions status to PROCESSING, downloads from S3, streams audio to Deepgram Nova-3 Medical (`nova-3-medical`), invokes Groq for SOAP extraction, runs pgvector HNSW pairwise RAG checks, persists entities to PostgreSQL, transitions status to AWAITING_REVIEW, and purges Redis cache keys. The doctor reviews the AI extraction, acknowledges warnings, and approves before the record is marked COMPLETE."*
 
 #### Q5: "How did you design the clinical UI to ensure physician trust and velocity?"
 > **Answer**: 
