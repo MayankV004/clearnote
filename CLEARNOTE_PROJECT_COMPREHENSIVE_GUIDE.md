@@ -14,7 +14,7 @@ In modern healthcare systems, administrative documentation is the leading driver
 ### 1.2 The ClearNote Solution
 **ClearNote** is an enterprise-grade, ambient clinical documentation platform and medical workflow system engineered to eliminate manual documentation while enforcing pharmaceutical safety guardrails:
 * **Ambient Voice-to-Record**: ClearNote captures clinical encounters in-browser (or via audio upload), streams audio through medical-tuned speech recognition (**Deepgram Nova-3 Medical** / `nova-3-medical`), and executes structured clinical extraction via high-throughput LLMs (**Groq Cloud Llama 3.3 70B Versatile**) into standardized **SOAP notes** (Subjective, Objective, Assessment, Plan), **ICD-10 coded diagnoses**, and **structured medication regimens**.
-* **Clinical Guideline RAG Safety Engine**: Powered by **Google Gemini embeddings** and **PostgreSQL `pgvector`** with **HNSW approximate nearest neighbor indexing** on NeonDB Serverless. It automatically calculates the pairwise Cartesian product ($\binom{N}{2}$) of prescribed medications and evaluates them against clinical practice guidelines (WHO/ICMR), flagging drug-drug interactions with clinical mechanism descriptions, actionable recommendations, source page citations, and confidence scores.
+* **Clinical Guideline RAG Safety Engine**: Powered by local **FastEmbed embeddings (`nomic-ai/nomic-embed-text-v1.5`)** and **PostgreSQL `pgvector`** with **HNSW approximate nearest neighbor indexing** on NeonDB Serverless. It automatically calculates the pairwise Cartesian product ($\binom{N}{2}$) of prescribed medications and evaluates them against clinical practice guidelines (WHO/ICMR), flagging drug-drug interactions with clinical mechanism descriptions, actionable recommendations, source page citations, and confidence scores.
 * **Human-in-the-Loop Clinical Review**: Adheres to strict medical safety governance: consultations transition to `AWAITING_REVIEW`, presenting clinicians with an interactive split-screen reviewer with explicit provenance tracking (`[AI Draft]` vs `[Clinician Verified]`) and mandatory acknowledgment of critical contraindications before cryptographic sign-off is unlocked.
 * **Closed-Loop Fulfillment**: Renders 21 CFR Part 11 compliant PDF prescriptions stamped with physician credentials, state license numbers, and digital signatures (via **WeasyPrint** & **Jinja2**), uploads them to encrypted AWS S3 buckets (SSE-S3 AES-256), serves them via expiring pre-signed URLs, and triggers automated SMS dosage reminders via **Twilio** and email dispatch via **SendGrid**.
 * **Quiet Confidence Design System**: High-efficiency clinical frontend built in **Next.js 16 (App Router)**, **React 19**, and **Tailwind CSS v4** featuring the **Plus Jakarta Sans** and **JetBrains Mono** font stack, collapsible clinical sidebar (`w-64` $\leftrightarrow$ `w-[72px]`), dedicated patient directory, consultation hub, and zero "AI slop".
@@ -38,13 +38,13 @@ In modern healthcare systems, administrative documentation is the leading driver
 | **Caching Layer** | **Upstash Redis (Serverless REST API)** | Cache-aside pattern for doctor sessions, consultation lists, and dashboard stats; reduces read latency from 150–200 ms to 5–10 ms. |
 | **Speech-to-Text (STT)** | **Deepgram Nova-3 Medical (`nova-3-medical`)** | State-of-the-art medical speech recognition handling multi-speaker consultation audio, noisy clinical environments, and pharmaceutical terminology with industry-leading Word Error Rate (WER). |
 | **LLM Inference** | **Groq Cloud API (`llama-3.3-70b-versatile`)** | Ultra-low latency (~250–300 tokens/sec) deterministic JSON extraction (temperature 0.0) of SOAP notes, ICD-10 codes, and medications, with automatic fallback to `llama-3.1-8b-instant`. |
-| **Embeddings** | **Google Gemini API (`embedding-001`)** | 768-dimensional clinical guideline embedding for high-semantic-density medical literature. |
+| **Embeddings** | **FastEmbed (`nomic-ai/nomic-embed-text-v1.5`)** | Local 768-dimensional dense clinical guideline embeddings (`search_document:` / `search_query:` prefixes) without external embedding API latency or token costs. |
 | **Document Processing & PDF** | **`pdfplumber`, LangChain Text Splitters, `WeasyPrint`, Jinja2** | High-fidelity multi-column PDF extraction; semantic recursive splitting (chunk size 800, overlap 150); HTML/CSS to vector PDF rendering for doctor prescriptions. |
 | **Object Storage & Cloud IO** | **AWS S3 (`boto3` via `asyncio.to_thread`)** | Encrypted storage (SSE-S3 AES-256) for raw audio files and generated PDF prescriptions with 15-minute expiring pre-signed URLs; non-blocking ASGI event loop offloading. |
 | **Authentication & IAM** | **Clerk, Svix Webhooks** | Multi-Factor Authentication (TOTP MFA), social OAuth, asymmetric RS256 JWT validation via JWKS, webhook synchronization. |
 | **Notifications** | **Twilio SMS API, SendGrid Email API** | Automated SMS dosage reminders to patient phone numbers; secure transactional prescription download delivery via email. |
 | **Security & Resilience** | **SlowAPI, Starlette Middleware** | IP-based rate limiting (60 req/min), automated audit logging to Postgres, HTTP security headers (HSTS, CSP, X-Frame-Options), S3 cascade erasure pipeline. |
-| **Testing & Quality** | **Pytest, `pytest-asyncio`, Playwright** | 115 backend unit/integration tests running in ~1.2s; automated Clinical Golden Benchmark evaluation suite (F1/Precision/Recall); Playwright E2E browser test suite. |
+| **Testing & Quality** | **Pytest, `pytest-asyncio`, Playwright** | 117 backend tests (`117 passed` in `7.40s`); RAG retrieval eval (`Precision@3 = 0.3333`, `Recall@3 = 1.0000`, `MRR = 1.0000`); Clinical Golden Benchmark SOAP extraction eval (mocked Groq responses); Playwright E2E browser test suite. |
 
 ---
 
@@ -80,9 +80,9 @@ In modern healthcare systems, administrative documentation is the leading driver
          | (1. Cache-Aside Read/Hit) | (2. Non-blocking S3 Threads)  | (3. Async DB Pool) | (4. Embeddings)
          v                           v                               v                    v
 +-------------------+       +-----------------+             +-------------------+  +---------------+
-|   Upstash Redis   |       |     AWS S3      |             |  NeonDB Serverless|  | Google Gemini |
-|  In-Memory Cache  |       | Encrypted Audio |             |  PostgreSQL 16    |  | embedding-001 |
-| (5ms read latency)|       | & Prescription  |             | (SQLAlchemy Async)|  | (768-dim)     |
+|   Upstash Redis   |       |     AWS S3      |             |  NeonDB Serverless|  |   FastEmbed   |
+|  In-Memory Cache  |       | Encrypted Audio |             |  PostgreSQL 16    |  | nomic-embed   |
+| (5ms read latency)|       | & Prescription  |             | (SQLAlchemy Async)|  | v1.5 (768-d)  |
 +-------------------+       +-----------------+             +-------------------+  +---------------+
                                      |                               ^                    |
                                      | Spooled Temp File (<5MB mem)  | HNSW Vector Index  | Chunks
@@ -174,7 +174,7 @@ The lifecycle of a consultation in ClearNote follows a strict, asynchronous stat
    - The RAG safety service computes pairwise drug combinations, searches `pgvector` via the HNSW index, prompts Groq with cited context, and inserts `Interaction` records. If no local guidelines match, confidence is strictly capped at $\le 0.5$.
    - Status transitions to `AWAITING_REVIEW`. Redis cache keys are purged.
 5. **Human-in-the-Loop Review**: The doctor inspects the split-screen reviewer (`/dashboard/consultations/[id]`). Every entity displays its provenance badge (`[AI Draft]` vs `[Clinician Verified]`). If the clinician alters medications or diagnoses, a PATCH request updates records and dynamically re-invokes RAG analysis on the medication delta.
-6. **Physician Sign-Off & Rx Fulfillment**: Doctor acknowledges critical warnings and clicks "Approve & Sign Off" (`POST /consultations/{id}/approve`), transitioning status to `COMPLETE`. Prescription generation compiles doctor credentials, state license number, and signature into a 21 CFR Part 11 compliant PDF via WeasyPrint, uploads it to S3, returns a pre-signed URL, and triggers automated SMS dosage reminders via Twilio.
+6. **Physician Sign-Off & Rx Fulfillment**: Doctor acknowledges critical warnings and clicks "Approve & Sign Off" (`POST /consultations/{id}/approve`), transitioning status to `COMPLETE`. Prescription generation compiles doctor credentials, state license number, and signature into a PDF via WeasyPrint, uploads it to S3, returns a pre-signed URL, and triggers automated email delivery via SendGrid.
 
 ---
 
@@ -197,7 +197,7 @@ Off-the-shelf generative LLMs suffer from three critical hazards in clinical pha
        ▼ (LangChain RecursiveCharacterTextSplitter: chunk_size=800, overlap=150)
 [ Document Chunks + Page Metadata ]
        │
-       ▼ (Google Gemini `embedding-001` → 768-dim float vector)
+       ▼ (FastEmbed `nomic-ai/nomic-embed-text-v1.5` → 768-dim float vector)
 [ Vectorized Guideline Chunks ]
        │
        ▼ (Stored in NeonDB `guideline_chunks` table with HNSW Cosine Index)
@@ -207,7 +207,7 @@ Off-the-shelf generative LLMs suffer from three critical hazards in clinical pha
 #### Stage 1: Document Ingestion & Chunking Architecture
 * **High-Fidelity Extraction**: Guidelines are ingested using `pdfplumber`, which preserves multi-column medical layouts and tabular drug dosages.
 * **Semantic Clinical Chunking**: Partitioned using LangChain's `RecursiveCharacterTextSplitter` with clinical delimiters (`["\n## ", "\n### ", "\n\n", "\n- ", "\n", ". ", "; ", " ", ""]`), `chunk_size=800`, and `chunk_overlap=150`. This preserves dosage tables, indication headers, and contraindication bullet points without fragmenting clauses.
-* **Embedding Model**: Chunks are embedded via Google Gemini (`embedding-001`), producing high-density 768-dimensional vector representations.
+* **Embedding Model**: Chunks are embedded locally via FastEmbed (`nomic-ai/nomic-embed-text-v1.5`) using Nomic task prefixes (`search_document:` for ingestion, `search_query:` for retrieval), producing 768-dimensional vector representations.
 * **HNSW Vector Indexing**: Stored in `guideline_chunks` indexed with **HNSW** (`vector_cosine_ops`, `m=16`, `ef_construction=64`). Compared to sequential scans or basic IVFFlat, HNSW provides sub-millisecond approximate nearest-neighbor retrieval without requiring periodic index retraining.
 
 #### Stage 2: Inference & Pairwise Combinatorial Search
@@ -215,7 +215,7 @@ When a consultation completes transcription (or when a doctor manually alters me
 1. **Pairwise Identification**: The service extracts all $N$ prescribed medications. For $N \ge 2$, it evaluates every pair $\binom{N}{2}$ (e.g., Amlodipine + Ibuprofen, Ibuprofen + Metformin).
 2. **Contextual Query Formulation**: Incorporates diagnosed conditions to catch disease-specific contraindications:
    ```python
-   query_text = f"drug interaction between {drug_a} and {drug_b} in context of {diag_context}"
+   query_text = f"search_query: drug interaction between {drug_a} and {drug_b} in context of {diag_context}"
    ```
 3. **pgvector HNSW Cosine Search**: The query text is vectorized on-the-fly and matched against the guidelines in NeonDB:
    ```sql
@@ -226,7 +226,7 @@ When a consultation completes transcription (or when a doctor manually alters me
    ```
 4. **Strictly Grounded LLM Prompting & Low-Evidence Capping**:
    - The top-3 retrieved chunks are formatted into a deterministic ChatPromptTemplate passed to Groq Llama 3.3 70B (temperature `0.0`).
-   - If retrieved similarity is below threshold or zero chunks match, output confidence is strictly capped to $\le 0.5$ and annotated as `"(Unverified in local guidelines)"`.
+   - If zero chunks match in the local knowledge base, context explicitly notes absence and output confidence is strictly capped to $\le 0.5$ with `"(Unverified in local guidelines)"` appended to `guideline_ref`.
    - On network or 5xx exceptions, safety caution alerts with `confidence=0.0` and `severity="MODERATE"` are recorded to require clinician manual verification in clinical formularies rather than silently failing.
 5. **Pydantic Validation & Persistence**: Validated against `InteractionResult` (severity: `NONE`, `MILD`, `MODERATE`, `SEVERE`), clinical mechanism, actionable recommendation, source citation, and confidence score. In the UI, `MODERATE` and `SEVERE` interactions render prominent amber/red badges requiring doctor acknowledgment before approval.
 
@@ -354,20 +354,21 @@ The database uses PostgreSQL (hosted on NeonDB Serverless) utilizing UUID primar
 ClearNote incorporates multi-layer automated verification spanning unit tests, integration tests, clinical golden benchmark evaluations, and end-to-end browser tests:
 
 ### 8.1 Backend Unit & Integration Test Suite (`pytest`)
-* **115 Unit & Integration Tests**: 100% pass rate in **~1.2 seconds**.
-* **Test Isolation**: SQLite in-memory asynchronous database (`sqlite+aiosqlite:///:memory:`) combined with strict mock factories (`unittest.mock.AsyncMock`), guaranteeing zero network or live API token dependencies during CI/CD.
-* **Coverage Scope**: Route status codes, Clerk JWKS validation, consultation state machine, Deepgram payload parsing, Groq JSON schema adherence, pairwise RAG vector queries, and error handling fallbacks.
+* **117 Backend Tests**: `117 passed, 2 warnings in 7.40s` (100% pass rate on latest run).
+* **Test Isolation**: SQLite in-memory asynchronous database (`sqlite+aiosqlite:///:memory:`) combined with mock factories (`unittest.mock.AsyncMock`) for external paid APIs (Groq, Deepgram, S3), while RAG retrieval benchmarks execute real local FastEmbed (`nomic-ai/nomic-embed-text-v1.5`) embeddings.
+* **Coverage Scope**: Route status codes, Clerk JWKS validation, consultation state machine (`PENDING` / `PROCESSING` / `AWAITING_REVIEW` / `COMPLETE` / `FAILED`), Deepgram payload parsing, Groq JSON schema adherence, RAG retrieval `Precision@3`/`Recall@3`/`MRR`, RAG fallback/grounding & chunking tests, and error handling fallbacks.
 
-### 8.2 Clinical Golden Benchmark Evaluation Suite
-ClearNote includes an automated medical evaluation benchmark (`backend/tests/evals/golden_dataset.py`, `backend/tests/evals/test_clinical_evals.py`) to systematically measure LLM extraction fidelity against physician-annotated clinical vignettes:
-* **Benchmark Vignettes**:
-  1. *Acute Streptococcal Pharyngitis*: Penicillin anaphylaxis allergy, Amoxicillin substitution risk, rapid antigen testing.
-  2. *Essential Hypertension & Knee Osteoarthritis*: Polypharmacy regimen (Lisinopril, Amlodipine, Celecoxib), NSAID-induced hypertension exacerbation, renal monitoring.
-  3. *Type 2 Diabetes Mellitus with Stage 4 CKD*: Metformin contraindication (lactic acidosis risk), eGFR-guided Insulin initiation.
-* **Evaluation Metrics & Regression Gates**:
-  - **Medication Extraction Recall**: $\ge 95\%$ (ensures no prescribed drug is omitted).
-  - **ICD-10 Diagnostic Recall**: $\ge 90\%$ (ensures diagnostic billing accuracy).
-  - **Allergy & Contraindication Recall**: $100\%$ (zero-tolerance for missed patient drug allergies).
+### 8.2 Clinical Golden Benchmark & RAG Retrieval Evaluation Suites
+ClearNote includes two evaluation harnesses under `backend/tests/evals/`:
+
+1. **Clinical SOAP Extraction Eval** (`golden_dataset.py`, `test_clinical_evals.py`): Evaluates SOAP/entity extraction against 3 physician-annotated clinical vignettes (using deterministic mocked Groq completions):
+   - **Medication Extraction Recall**: $\ge 95\%$ aggregate ($\ge 90\%$ per vignette).
+   - **ICD-10 Diagnostic Recall**: $\ge 90\%$ aggregate ($\ge 80\%$ per vignette).
+   - **Allergy & Contraindication Recall**: $100\%$ (zero-tolerance for missed patient drug allergies).
+2. **RAG Guideline Retrieval Eval** (`rag_golden_dataset.py`, `test_rag_retrieval_evals.py`): Evaluates real `RAGService` chunking (`RecursiveCharacterTextSplitter`), `build_interaction_query`, `nomic-ai/nomic-embed-text-v1.5` embeddings, and cosine-distance top-3 ranking over 12 manually labelled clinical queries and 18 curated guideline documents (WHO/ICMR interactions + distractors):
+   - **Measured Precision@3**: `0.3333` (theoretical ceiling `1/3` with 1 relevant doc per query; gate $\ge 0.30$).
+   - **Measured Recall@3**: `1.0000` (12/12 retrieved in top-3; gate $\ge 0.90$).
+   - **Measured MRR**: `1.0000` (12/12 ranked #1; gate $\ge 0.80$).
 
 ### 8.3 Playwright E2E Browser Test Suite
 Automated end-to-end browser tests validating clinical workflows under headless Chromium:
@@ -388,12 +389,12 @@ Use these tailored bullet points, architectural summaries, and project descripti
 
 #### Option 1: Emphasizing Full-Stack, AI & RAG Engineering
 * **Architected ClearNote**, an ambient clinical documentation platform converting doctor-patient audio into structured SOAP notes and ICD-10 diagnoses using **Deepgram Nova-3 Medical** (`nova-3-medical`) and **Groq Cloud (Llama 3.3 70B)** at ~250 tokens/sec.
-* **Engineered a RAG clinical safety engine** using **Google Gemini embeddings** and **PostgreSQL `pgvector` with HNSW indexing** over WHO/ICMR clinical guidelines; calculated pairwise drug combinations ($\binom{N}{2}$) to intercept drug-drug interactions with cited page references and confidence scores.
+* **Engineered a RAG clinical safety engine** using local **FastEmbed (`nomic-ai/nomic-embed-text-v1.5`) embeddings** and **PostgreSQL `pgvector` with HNSW indexing** over WHO/ICMR clinical guidelines; calculated pairwise drug combinations ($\binom{N}{2}$) to intercept drug-drug interactions with cited page references and confidence scores.
 * **Enforced human-in-the-loop review governance** via an asynchronous state machine (`PENDING` $\rightarrow$ `PROCESSING` $\rightarrow$ `AWAITING_REVIEW` $\rightarrow$ `COMPLETE`), featuring provenance badges (`[AI Draft]` vs `[Clinician Verified]`) and gated physician approval before prescription dispatch.
 * **Engineered high-performance async backend** with **FastAPI**, **SQLAlchemy 2.0 (Async)**, and **NeonDB Serverless Postgres**, implementing an **Upstash Redis cache-aside pattern** that cut API read latency by **95%** (from 180 ms to <10 ms).
 * **Built closed-loop prescription engine** using **WeasyPrint** and Jinja2 to render 21 CFR Part 11 compliant PDF prescriptions with digital signatures stored on **AWS S3** via expiring pre-signed URLs, integrating **Twilio SMS** for automated dosage reminders.
 * **Designed modern clinical frontend** using **Next.js 16 (App Router)**, **React 19**, and **Tailwind CSS v4** featuring the **Plus Jakarta Sans** and **JetBrains Mono** font stack, a hardware-accelerated collapsible sidebar, and full WCAG 2.2 AAA accessibility.
-* **Authored comprehensive test suites** spanning 115 `pytest-asyncio` tests (~1.2s runtime), automated Clinical Golden Benchmark evaluations (Medication Recall $\ge 95\%$, Allergy Recall = $100\%$), and Playwright E2E browser tests.
+* **Authored comprehensive test suites** spanning 117 `pytest-asyncio` tests (`7.40s` runtime), a 12-query FastEmbed RAG retrieval benchmark (`Precision@3 = 0.3333`, `Recall@3 = 1.0000`, `MRR = 1.0000`), a Clinical Golden Benchmark SOAP extraction suite (Medication Recall $\ge 95\%$, Allergy Recall = $100\%$), and Playwright E2E browser tests.
 
 #### Option 2: Emphasizing Backend, Systems & Cloud Infrastructure
 * **Built scalable, async healthcare backend in Python 3.12 (FastAPI, Uvicorn, asyncpg)** supporting ambient consultation recording, asynchronous worker pipelines, and automated document generation.
@@ -414,7 +415,7 @@ Use these tailored bullet points, architectural summaries, and project descripti
 
 ```markdown
 **ClearNote — Ambient AI Clinical Documentation & Safety Platform**
-*Tech Stack: Next.js 16, React 19, TypeScript, Tailwind CSS v4, Plus Jakarta Sans, FastAPI, Python 3.12, PostgreSQL (NeonDB), pgvector (HNSW), Upstash Redis, AWS S3, Groq (Llama 3.3 70B), Deepgram Nova-3 Medical, Google Gemini, Clerk, WeasyPrint, Twilio*
+*Tech Stack: Next.js 16, React 19, TypeScript, Tailwind CSS v4, Plus Jakarta Sans, FastAPI, Python 3.12, PostgreSQL (NeonDB), pgvector (HNSW), Upstash Redis, AWS S3, Groq (Llama 3.3 70B), Deepgram Nova-3 Medical, FastEmbed (nomic-embed-text-v1.5), Clerk, WeasyPrint, Twilio*
 
 ClearNote is an enterprise ambient clinical intelligence assistant that converts doctor-patient voice consultations into structured medical records in real time. It transcribes audio via Deepgram Nova-3 Medical (`nova-3-medical`), extracts structured SOAP notes and ICD-10 coded diagnoses via Groq Llama 3.3 70B (temp 0.0), and runs an automated RAG safety pipeline over WHO/ICMR clinical guidelines stored in PostgreSQL `pgvector` with HNSW indexing to flag drug-drug interactions with cited clinical mechanisms. The platform features an Upstash Redis cache-aside layer (sub-10ms reads), WeasyPrint PDF prescription generation, AWS S3 encrypted storage with asyncio thread offloading, Clerk MFA authentication, PostgreSQL Row-Level Security, a collapsible "Quiet Confidence" clinical interface, and Twilio SMS dosage alerts.
 ```
@@ -426,7 +427,7 @@ ClearNote is an enterprise ambient clinical intelligence assistant that converts
 #### Q1: "Why did you use RAG for drug interaction checking instead of just asking the LLM directly?"
 > **Answer**: 
 > *"Direct LLM prompting for medical pharmacology is dangerous due to hallucinations and non-deterministic reasoning. An LLM may hallucinate interactions or miss subtle contraindications. 
-> By building a RAG pipeline over verified clinical guidelines (WHO Model Formulary and ICMR Standard Treatment Guidelines) using Google Gemini embeddings and PostgreSQL `pgvector` with HNSW indexing, we ensure that every interaction alert is strictly grounded in cited text. The model is constrained to output severity: NONE if the retrieved context lacks explicit evidence, low-evidence results are capped to $\le 0.5$ confidence, and every valid alert returns the exact source document and page number. This provides clinical verifiability and legal defensibility."*
+> By building a RAG pipeline over verified clinical guidelines (WHO Model Formulary and ICMR Standard Treatment Guidelines) using local FastEmbed embeddings (`nomic-ai/nomic-embed-text-v1.5`) and PostgreSQL `pgvector` with HNSW indexing, we ensure that every interaction alert is strictly grounded in cited text. The model is constrained to output severity: NONE if the retrieved context lacks explicit evidence, low-evidence results are capped to $\le 0.5$ confidence, and every valid alert returns the exact source document and page number. This provides clinical verifiability and legal defensibility."*
 
 #### Q2: "How did you optimize database performance and prevent latency spikes?"
 > **Answer**: 
@@ -450,7 +451,8 @@ ClearNote is an enterprise ambient clinical intelligence assistant that converts
 > We built a collapsible clinical sidebar that transitions smoothly between a full 256px navigation panel and a 72px icon rail with right-floating tooltips and hotkeys (`⌘[`, `R`, `N`).
 > In the consultation reviewer, we built a 40/60 split-screen workspace featuring synchronized audio playback with click-to-seek transcript alignment, explicit provenance indicators (`[AI Draft]` vs `[Clinician Verified]`), 3-tier graded drug alerts (MILD, MODERATE, CRITICAL), and a docked review bar that requires explicit acknowledgment of severe contraindications before digital prescription generation is unlocked."*
 
-#### Q6: "How do you systematically evaluate and prevent LLM regressions in production?"
+#### Q6: "How do you systematically evaluate and prevent LLM and RAG regressions in production?"
 > **Answer**: 
-> *"We implemented an automated Clinical Golden Benchmark evaluation suite in pytest that tests our LLM pipeline against physician-annotated clinical vignettes covering complex polypharmacy, penicillin anaphylaxis, and stage 4 CKD.
-> The test suite evaluates extraction accuracy with strict regression gates: Medication Recall must remain $\ge 95\%$, ICD-10 Diagnostic Recall $\ge 90\%$, and Allergy Recall must be $100\%$. If a prompt tweak or model update misses an allergy or critical drug entity, CI/CD fails immediately."*
+> *"We maintain two evaluation harnesses in `backend/tests/evals/`:
+> 1. **SOAP Extraction Eval (`test_clinical_evals.py`)**: Uses deterministic mocked Groq completions across clinical vignettes (polypharmacy, penicillin anaphylaxis, stage 4 CKD) to enforce Medication Recall $\ge 95\%$, ICD-10 Diagnostic Recall $\ge 90\%$, and Allergy Recall $= 100\%$.
+> 2. **RAG Retrieval Eval (`test_rag_retrieval_evals.py`)**: Uses a manually labelled 12-query, 18-document clinical guideline corpus with real `RAGService` chunking and local `nomic-ai/nomic-embed-text-v1.5` embeddings, measuring `Precision@3` (`0.3333`), `Recall@3` (`1.0000`), and `MRR` (`1.0000`) against automated regression gates."*

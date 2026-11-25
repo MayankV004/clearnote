@@ -19,7 +19,7 @@ flowchart TB
     end
 
     subgraph APILayer ["Application Gateway & API Layer"]
-        API["FastAPI 0.115.8 REST & WS API<br/><code>backend/app/main.py</code>"]
+        API["FastAPI 0.136.3 REST & WS API<br/><code>backend/app/main.py</code>"]
         MW["Security & Audit Middleware<br/><code>backend/app/middleware/security_header.py</code>"]
         API --- MW
     end
@@ -68,16 +68,16 @@ flowchart TB
 | Component | Source Reference | Technology | Primary Function |
 | :--- | :--- | :--- | :--- |
 | **Frontend Web App** | `frontend/src/app` | Next.js 16.2.6 (App Router), React 19, TanStack Query 5 | Doctor portal, audio recorder, consultation editor, patient management |
-| **API Server** | `backend/app/main.py:1` | FastAPI 0.115.8, Uvicorn 0.34.0 | REST endpoints, WebSocket streaming, middleware orchestration |
+| **API Server** | `backend/app/main.py:1` | FastAPI 0.136.3, Uvicorn 0.48+ | REST endpoints, WebSocket streaming, middleware orchestration |
 | **Authentication** | `backend/app/api/dependencies/auth.py:27` | Clerk SDK / JWT verification | Decodes and validates RS256 JWTs using Clerk JWKS public keys |
 | **Relational & Vector DB** | `backend/app/db/session.py:13` | Neon PostgreSQL 16 + pgvector | Persistent relational clinical records and 768-dim vector embeddings |
-| **Object Storage** | `backend/app/services/s3_service.py:27` | AWS S3 via Boto3 (aioboto3 compatible) | Binary audio recordings (`clearnote-audio-s3`) and PDF prescriptions (`clearnote-pdfs-s3`) |
+| **Object Storage** | `backend/app/services/s3_service.py:27` | AWS S3 via Boto3 (`asyncio.to_thread`) | Binary audio recordings (`clearnote-audio`) and PDF prescriptions (`clearnote-pdfs`) |
 | **Cache Layer** | `backend/app/services/cache_service.py:18` | Upstash Redis via REST (`upstash-redis`) | Cache-aside layer for doctor profiles, patient rosters, consultation views |
-| **Speech-to-Text (STT)** | `backend/app/services/deepgram_service.py:24` | Deepgram SDK (`nova-3-medical`) | Live WebSocket streaming and prerecorded consultation audio transcription |
-| **Clinical Extraction LLM** | `backend/app/services/llm_service.py:16` | Groq API (`llama-3.3-70b-versatile`, fallback `llama-3.1-8b-instant`) | Structured JSON extraction of SOAP notes, medications, ICD-10 codes |
-| **Interaction RAG LLM** | `backend/app/services/rag_service.py:168` | Groq API (`llama-3.3-70b-versatile`) | Evaluates drug-drug and drug-allergy interactions against retrieved chunks |
-| **Local Embedding Engine** | `backend/app/services/rag_service.py:26` | FastEmbed (`nomic-ai/nomic-embed-text-v1.5`)| Runs dense 768-dimensional text embeddings locally on host CPU (~44ms) |
-| **Prescription Engine** | `backend/app/services/pdf_service.py:17` | WeasyPrint 64.0 + Jinja2 | Renders PDF prescriptions from HTML templates (`prescription_template.html`) |
+| **Speech-to-Text (STT)** | `backend/app/services/deepgram_service.py:62` | Deepgram SDK (`nova-3-medical`) | Prerecorded consultation audio transcription (with WebSocket streaming entrypoint) |
+| **Clinical Extraction LLM** | `backend/app/services/llm_service.py:19` | Groq API (`llama-3.3-70b-versatile`, fallback `llama-3.1-8b-instant`) | Structured JSON extraction of SOAP notes, medications, ICD-10 codes |
+| **Interaction RAG LLM** | `backend/app/services/rag_service.py:140` | Groq API (`llama-3.3-70b-versatile`) | Evaluates pairwise drug-drug interactions against retrieved chunks |
+| **Local Embedding Engine** | `backend/app/services/rag_service.py:27` | FastEmbed (`nomic-ai/nomic-embed-text-v1.5`)| Runs dense 768-dimensional text embeddings locally on host CPU |
+| **Prescription Engine** | `backend/app/services/pdf_service.py:6` | WeasyPrint 69.0+ + Jinja2 | Renders PDF prescriptions from HTML templates (`prescription_template.html`) |
 | **Notification Engine** | `backend/app/services/notification_service.py:18`| SendGrid & Twilio SDKs | Dispatches prescription links via transactional email and SMS |
 
 ---
@@ -130,41 +130,36 @@ sequenceDiagram
     participant WS as FastAPI WebSocket (/consultations/{id}/stream)
     participant DG as Deepgram API (nova-3-medical)
     participant BG as ConsultationService (background)
-    participant S3 as AWS S3 (clearnote-audio-s3)
-    participant Groq as Groq API (llama-3.1-8b)
-    participant RAG as RagService & FastEmbed
+    participant S3 as AWS S3 (clearnote-audio)
+    participant Groq as Groq API (llama-3.3-70b-versatile)
+    participant RAG as RAGService & FastEmbed
     participant DB as Neon PostgreSQL
 
     Clinician->>Browser: Starts consultation recording
-    Browser->>WS: Connect ws://localhost:8000/consultations/{id}/stream
-    Note over WS: backend/app/api/routes/consultations.py:128
-    WS->>DG: Initialize Deepgram Live Client (backend/app/services/deepgram_service.py:108)
-    
+    Browser->>WS: Connect ws://localhost:8000/consultations/{id}/stream?token=<jwt>
+    Note over WS: backend/app/api/routes/consultations.py:149
+
     loop Stream Audio Chunks
-        Browser->>WS: Raw Audio PCM / WebM bytes
-        WS->>DG: Send binary stream
-        DG-->>WS: Interim Transcript Event
-        WS-->>Browser: JSON {"type": "transcript", "text": "...", "is_final": false}
+        Browser->>WS: Raw binary audio bytes
+        WS->>WS: Spool to tempfile.SpooledTemporaryFile (5MB RAM limit)
     end
 
-    Clinician->>Browser: Clicks "Finish Consultation"
-    Browser->>WS: Send JSON {"type": "stop"}
-    WS->>DG: Finish Stream & retrieve full combined transcript
-    WS->>S3: Upload raw audio bytes (clearnote-audio-s3)
-    WS->>DB: UPDATE consultations SET audio_url = :url, transcript = :text, status = 'AUDIO_UPLOADED'
-    WS-->>Browser: Close WebSocket
-    Browser->>WS: POST /consultations/{id}/process (backend/app/api/routes/consultations.py:105)
-    WS->>BG: Enqueue process_consultation_background
-    WS-->>Browser: 202 Accepted {"status": "PROCESSING"}
+    Clinician->>Browser: Clicks "Finish Consultation" (closes WebSocket)
+    WS->>S3: Upload spooled audio bytes via asyncio.to_thread
+    WS->>DB: UPDATE consultations SET audio_s3_key = :key, status = 'PROCESSING'
+    WS->>BG: Trigger _run_transcription in BackgroundTasks
 
-    Note over BG: Background Execution (backend/app/services/consultation_service.py:270)
-    BG->>Groq: Prompt llama-3.1-8b-instant with transcript (soap_extraction.py)
+    Note over BG: Background Execution (backend/app/services/consultation_service.py)
+    BG->>S3: Download audio bytes
+    BG->>DG: Transcribe prerecorded audio (nova-3-medical)
+    DG-->>BG: Diarized transcript
+    BG->>Groq: Extract SOAP, meds, ICD-10 (llama-3.3-70b-versatile, fallback 8b)
     Groq-->>BG: Structured JSON (SOAP, Meds, Diagnoses)
     
-    loop For each extracted medication
-        BG->>RAG: check_drug_interactions(med_name, all_meds, patient_allergies)
+    loop For each medication pair (N choose 2)
+        BG->>RAG: check_drug_interactions(consultation_id, meds, diagnoses)
         RAG->>RAG: FastEmbed nomic-embed-text-v1.5 query vector (768-dim)
-        RAG->>DB: Cosine Search: SELECT * FROM guideline_chunks ORDER BY embedding <=> query LIMIT 3
+        RAG->>DB: HNSW Cosine Search: SELECT * FROM guideline_chunks ORDER BY embedding <=> query LIMIT 3
         DB-->>RAG: Matched Clinical Guidelines
         RAG->>Groq: Evaluate interaction via llama-3.3-70b-versatile
         Groq-->>RAG: Interaction result (severity, mechanism, recommendation)
@@ -174,7 +169,7 @@ sequenceDiagram
     BG->>DB: UPDATE consultations SET status = 'AWAITING_REVIEW'
     BG->>DB: Invalidate consultation cache in Redis
     Clinician->>API: POST /consultations/{id}/approve (Signs off on clinical notes)
-    API->>DB: UPDATE consultations SET status = 'COMPLETED'
+    API->>DB: UPDATE consultations SET status = 'COMPLETE'
     Clinician->>API: POST /consultations/{id}/prescription (PDF generated)
 ```
 
@@ -230,12 +225,13 @@ erDiagram
         uuid id PK "gen_random_uuid()"
         uuid doctor_id FK "References doctors.id"
         uuid patient_id FK "References patients.id"
-        varchar status "PENDING|AUDIO_UPLOADED|TRANSCRIBED|PROCESSING|COMPLETED|FAILED"
-        varchar audio_url "S3 Audio Object Key / URL"
-        text transcript "Speech-to-Text Transcription"
-        varchar prescription_pdf_url "S3 PDF Object Key / URL"
+        varchar status "PENDING|PROCESSING|AWAITING_REVIEW|COMPLETE|FAILED"
+        varchar audio_s3_key "S3 Audio Object Key"
+        integer duration_seconds "Encounter Audio Duration"
+        varchar prescription_s3_key "S3 PDF Object Key"
+        varchar processing_error "Failure Diagnostic Message"
         timestamptz created_at "Created Timestamp"
-        timestamptz updated_at "Updated Timestamp"
+        timestamptz deleted_at "Soft Delete Timestamp"
     }
 
     SOAP_NOTES {
@@ -272,18 +268,21 @@ erDiagram
     INTERACTIONS {
         uuid id PK "gen_random_uuid()"
         uuid consultation_id FK "References consultations.id"
-        varchar severity "CRITICAL | WARNING | INFO"
-        text description "Clinical explanation of mechanism"
+        varchar drug_a "First Medication"
+        varchar drug_b "Second Medication"
+        varchar severity "NONE | MILD | MODERATE | SEVERE"
+        varchar guideline_ref "Source Citation"
+        text mechanism "Clinical explanation of mechanism"
         text recommendation "Adjust dosage / alternative agent"
-        timestamptz created_at "Created Timestamp"
+        float confidence "Confidence score (0.0 to 1.0)"
     }
 
     GUIDELINE_CHUNKS {
-        uuid id PK "gen_random_uuid()"
+        serial id PK "Auto-increment integer ID"
+        varchar source "Guideline source name"
+        integer page "PDF page number"
         text content "Guideline text chunk"
-        vector_768 embedding "FastEmbed nomic-embed-text-v1.5 vector"
-        jsonb chunk_metadata "Source, Section, Guidelines ID"
-        timestamptz created_at "Created Timestamp"
+        vector_768 embedding "FastEmbed nomic-embed-text-v1.5 vector (HNSW index)"
     }
 
     AUDIT_LOGS {
@@ -299,9 +298,10 @@ erDiagram
     DATA_DELETION_REQUESTS {
         uuid id PK "gen_random_uuid()"
         uuid patient_id FK "References patients.id"
-        varchar status "PENDING | COMPLETED | FAILED"
+        uuid doctor_id FK "References doctors.id"
+        varchar status "PENDING | PROCESSED | REJECTED"
         timestamptz requested_at "Request Timestamp"
-        timestamptz completed_at "Execution Timestamp"
+        timestamptz processed_at "Execution Timestamp"
     }
 ```
 
@@ -328,27 +328,28 @@ flowchart LR
     subgraph Verification ["3. Drug Safety RAG Verification (backend/app/services/rag_service.py:126)"]
         PARSER --> EXTRACT_MEDS["Extracted Prescriptions<br/>+ Patient Allergies & History"]
         EXTRACT_MEDS --> EMBED_QUERY["FastEmbed Vectorizer<br/>Query: 'MedA MedB Allergies'"]
-        EMBED_QUERY --> COSINE_SEARCH["Cosine Distance (<=>)<br/>SELECT * FROM guideline_chunks<br/>WHERE cosine_distance < 0.70 LIMIT 3"]
+        EMBED_QUERY --> COSINE_SEARCH["HNSW Cosine Distance (<=>)<br/>SELECT * FROM guideline_chunks<br/>ORDER BY embedding <=> query LIMIT 3"]
         PGV -.-> COSINE_SEARCH
-        COSINE_SEARCH --> PROMPT_INT["Interaction Prompt Template<br/><code>drug_interaction.py:7</code>"]
-        PROMPT_INT --> GROQ_INT["Groq API: llama-3.3-70b-versatile<br/>Critical/Warning/Info Grading"]
+        COSINE_SEARCH --> PROMPT_INT["Interaction Prompt Template<br/><code>drug_interaction.py</code>"]
+        PROMPT_INT --> GROQ_INT["Groq API: llama-3.3-70b-versatile<br/>NONE/MILD/MODERATE/SEVERE Grading"]
         GROQ_INT --> PERSIST["Save to interactions table<br/>& Update Consultation Status"]
     end
 ```
 
 ### Pipeline Stage Details
 
-1. **Ingestion & Chunking** (`backend/app/services/rag_service.py:31-70`):
-   - Text splitter: `langchain_text_splitters.CharacterTextSplitter(chunk_size=1000, chunk_overlap=200)`.
-   - Embedder: `fastembed.TextEmbedding(model_name="nomic-ai/nomic-embed-text-v1.5")`.
-   - Vector Storage: Injected directly into table `guideline_chunks` with `vector(768)`.
-2. **Clinical Information Extraction** (`backend/app/services/llm_service.py:16-58`):
-   - Prompt: System instructions enforcing SOAP standard, medication details (name, dose, freq, duration, instructions), and ICD-10 diagnosis codes (`backend/app/prompts/soap_extraction.py:8`).
-   - LLM: `Groq(model="llama-3.1-8b-instant", temperature=0.1, response_format={"type": "json_object"})`.
-3. **Retrieval & Safety Guardrails** (`backend/app/services/rag_service.py:72-185`):
-   - Query Vector: Generated via FastEmbed on CPU in < 50ms.
-   - Retrieval: PostgreSQL `embedding <=> :query_vector` cosine distance. Chunks with distance `>= 0.70` are discarded as ungrounded.
-   - Interaction Arbiter: `Groq(model="llama-3.3-70b-versatile", temperature=0.0)`. Analyzes retrieved evidence against drug pairs, returning structured severity flags (`CRITICAL`, `WARNING`, `INFO`).
+1. **Ingestion & Chunking** (`backend/app/services/rag_service.py:84-135`):
+   - PDF extraction: `pdfplumber` extracts text page-by-page.
+   - Text splitter: `langchain_text_splitters.RecursiveCharacterTextSplitter(chunk_size=800, chunk_overlap=150)` with clinical delimiters (`\n## `, `\n### `, `\n\n`, `\n- `, etc.).
+   - Embedder: `fastembed.TextEmbedding(model_name="nomic-ai/nomic-embed-text-v1.5")` with `search_document:` prefix.
+   - Vector Storage: Stored in `guideline_chunks` with `vector(768)` and an HNSW index (`idx_guideline_chunks_embedding_hnsw`, `m=16`, `ef_construction=64`).
+2. **Clinical Information Extraction** (`backend/app/services/llm_service.py:19-70`):
+   - Prompt: System instructions with `<untrusted_clinical_dialogue>` delimiters enforcing SOAP standard, medication details, and ICD-10 diagnosis codes (`backend/app/prompts/soap_extraction.py`).
+   - LLM: `Groq(model="llama-3.3-70b-versatile", temperature=0.0, response_format={"type": "json_object"})` with automatic fallback to `llama-3.1-8b-instant`.
+3. **Retrieval & Safety Guardrails** (`backend/app/services/rag_service.py:140-241`):
+   - Query Vector: Generated via FastEmbed (`search_query:` prefix).
+   - Retrieval: PostgreSQL `embedding <=> :query_vector` top-3 cosine distance search (with optional `source_filter`). When zero chunks match, confidence is capped to `<= 0.5` and `guideline_ref` is annotated `"(Unverified in local guidelines)"`.
+   - Interaction Arbiter: `Groq(model="llama-3.3-70b-versatile", temperature=0.0)`. Analyzes retrieved evidence against drug pairs, returning Pydantic-validated `InteractionResult` severity flags (`NONE`, `MILD`, `MODERATE`, `SEVERE`). On LLM failure, persists a `MODERATE` caution alert with `confidence=0.0` requiring manual formulary verification.
 
 ---
 
@@ -438,24 +439,26 @@ Application configuration is loaded using `pydantic-settings` (`backend/app/core
 
 | Variable | Type | Default | Required in Prod | Purpose / Security Classification |
 | :--- | :--- | :--- | :--- | :--- |
-| `PROJECT_NAME` | `str` | `"ClearNote"` | No | System identity |
 | `DATABASE_URL` | `str` | - | **YES** | Neon PostgreSQL connection string (`postgresql+asyncpg://...`). Contains DB credentials. |
 | `CLERK_SECRET_KEY` | `str` | - | **YES** | Secret key for backend Clerk API calls and token verification. |
 | `CLERK_PUBLISHABLE_KEY` | `str` | - | **YES** | Public Clerk identifier used on frontend and JWT JWKS discovery. |
-| `CLERK_FRONTEND_API_URL` | `str` | - | **YES** | Base URL for Clerk JWKS (`https://<app>.clerk.accounts.dev`). |
+| `CLERK_WEBHOOK_SECRET` | `str` | - | **YES** | Svix secret for verifying Clerk user webhooks. |
+| `CLERK_AUTHORIZED_PARTIES` | `list[str]` | `["http://localhost:3000"]` | No | Allowed authorized parties for Clerk JWTs. |
 | `GROQ_API_KEY` | `str` | - | **YES** | Authentication key for Groq LLM inference. |
+| `GROQ_MODEL` | `str` | `"llama-3.3-70b-versatile"` | No | Primary Groq model for extraction & RAG interaction checking. |
+| `GROQ_FALLBACK_MODEL` | `str` | `"llama-3.1-8b-instant"` | No | Fallback Groq model when primary call fails. |
 | `DEEPGRAM_API_KEY` | `str` | - | **YES** | Authentication key for Deepgram Medical STT. |
-| `AWS_ACCESS_KEY_ID` | `str` | - | **YES** | AWS IAM access key for S3 read/write. |
-| `AWS_SECRET_ACCESS_KEY`| `str` | - | **YES** | AWS IAM secret access key for S3. |
-| `AWS_REGION` | `str` | `"ap-south-1"` | No | Target AWS region. |
-| `AWS_S3_AUDIO_BUCKET` | `str` | `"clearnote-audio-s3"` | No | S3 bucket for audio storage. |
-| `AWS_S3_PRESCRIPTION_BUCKET` | `str` | `"clearnote-pdfs-s3"` | No | S3 bucket for PDF storage. |
-| `AWS_ENDPOINT_URL` | `str` | `""` | No | Overrides S3 endpoint (set to `http://localhost:9000` for MinIO during local testing). |
+| `AWS_ACCESS_KEY_ID` | `str` | `"test"` | **YES** | AWS IAM access key for S3 read/write. |
+| `AWS_SECRET_ACCESS_KEY`| `str` | `"test"` | **YES** | AWS IAM secret access key for S3. |
+| `AWS_REGION` | `str` | `"us-east-1"` | No | Target AWS region. |
+| `AUDIO_BUCKET_NAME` | `str` | `"clearnote-audio"` | No | S3 bucket for audio storage. |
+| `PDF_BUCKET_NAME` | `str` | `"clearnote-pdfs"` | No | S3 bucket for PDF prescriptions & signatures. |
+| `AWS_ENDPOINT_URL` | `str | None` | `None` | No | Overrides S3 endpoint (set to `http://localhost:9000` for MinIO during local testing). |
 | `UPSTASH_REDIS_REST_URL` | `str` | `""` | No | Upstash Redis REST endpoint for distributed caching. |
 | `UPSTASH_REDIS_REST_TOKEN` | `str` | `""` | No | Upstash Redis REST Bearer authentication token. |
 | `SENDGRID_API_KEY` | `str` | `""` | No | API key for SendGrid transactional email dispatch. |
-| `SENDGRID_FROM_EMAIL`| `str` | `""` | No | Verified sender email for SendGrid. |
+| `SENDGRID_FROM_EMAIL`| `str` | `"noreply@clearnote.com"` | No | Verified sender email for SendGrid. |
 | `TWILIO_ACCOUNT_SID` | `str` | `""` | No | Twilio account identifier for SMS dispatch. |
 | `TWILIO_AUTH_TOKEN` | `str` | `""` | No | Twilio authentication token for SMS dispatch. |
-| `TWILIO_FROM_NUMBER` | `str` | `""` | No | Twilio phone number for SMS dispatch. |
-| `FRONTEND_URL` | `str` | `"http://localhost:3000"` | **YES** | Allowed CORS origin for Next.js frontend. |
+| `TWILIO_PHONE_NUMBER` | `str` | `""` | No | Twilio phone number for SMS dispatch. |
+| `FRONTEND_URL` | `str` | - | **YES** | Allowed CORS origin for Next.js frontend. |

@@ -13,7 +13,7 @@ Physicians and outpatient clinicians spend up to **50% of their working day** na
 
 **ClearNote** automates the documentation lifecycle:
 - Captures audio during consultations in real-time or via prerecorded uploads.
-- Generates structured, standard **SOAP notes** (Subjective, Objective, Assessment, Plan) and ICD-10 diagnostic proposals using speech-to-text (`Deepgram Nova-3 Medical`) and clinical LLM extraction (`Groq llama-3.1-8b-instant`).
+- Generates structured, standard **SOAP notes** (Subjective, Objective, Assessment, Plan) and ICD-10 diagnostic proposals using speech-to-text (`Deepgram Nova-3 Medical`) and clinical LLM extraction (`Groq llama-3.3-70b-versatile`, fallback `llama-3.1-8b-instant`).
 - Automatically intercepts medication lists and verifies them against clinical guidelines using **Retrieval-Augmented Generation (RAG)** and local vector embeddings (`FastEmbed nomic-embed-text-v1.5` on pgvector).
 - Generates downloadable, patient-ready PDF prescriptions (`WeasyPrint`) and dispatches them via email/SMS.
 
@@ -90,18 +90,18 @@ flowchart TD
 | **Audio Capture** | Live WebSocket Audio Streaming to Deepgram | `backend/app/api/routes/consultations.py:128` | Implemented |
 | | Prerecorded Audio File Upload (Multipart) | `backend/app/api/routes/consultations.py:59` | Implemented |
 | | S3 Encrypted Audio Object Storage | `backend/app/services/s3_service.py:75` | Implemented |
-| **AI Documentation** | Clinical SOAP Extraction (llama-3.1-8b) | `backend/app/services/llm_service.py:16` | Implemented |
-| | ICD-10 Diagnostic Code Suggestion | `backend/app/prompts/soap_extraction.py:8` | Implemented |
+| **AI Documentation** | Clinical SOAP Extraction (`llama-3.3-70b-versatile` / `8b` fallback) | `backend/app/services/llm_service.py:19` | Implemented |
+| | ICD-10 Diagnostic Code Suggestion | `backend/app/prompts/soap_extraction.py` | Implemented |
 | | Discrete Medication Entity Extraction | `backend/app/models/medication.py:1` | Implemented |
-| **Safety & RAG** | Guideline Ingestion & Local Embeddings | `backend/app/services/rag_service.py:31` | Implemented |
-| | Cosine Vector Similarity Retrieval | `backend/app/services/rag_service.py:72` | Implemented |
-| | Multi-Drug & Allergy Interaction Grading | `backend/app/services/rag_service.py:126` | Implemented |
-| **Prescriptions** | Printable WeasyPrint PDF Compilation | `backend/app/services/pdf_service.py:17` | Implemented |
-| | S3 Upload & Pre-signed URL Generation | `backend/app/services/s3_service.py:145` | Implemented |
-| | Public Prescription View Route | `backend/app/api/routes/consultations.py:30` | Implemented |
-| | Transactional Email (SendGrid) & SMS (Twilio) | `backend/app/services/notification_service.py:18`| Implemented |
-| **Privacy & Erasure**| GDPR / HIPAA Right to Erasure Workflow | `backend/app/api/routes/data_deletion.py:18` | Implemented |
-| | Request Access Audit Middleware | `backend/app/middleware/security_header.py:23` | Partially Implemented (Buggy) |
+| **Safety & RAG** | Guideline Ingestion & Local Embeddings | `backend/app/services/rag_service.py:49` | Implemented |
+| | HNSW Cosine Vector Similarity Retrieval | `backend/app/services/rag_service.py:165` | Implemented |
+| | Multi-Drug Interaction Grading (`NONE`/`MILD`/`MODERATE`/`SEVERE`) | `backend/app/services/rag_service.py:140` | Implemented |
+| **Prescriptions** | Printable WeasyPrint PDF Compilation | `backend/app/services/pdf_service.py:20` | Implemented |
+| | S3 Upload & Pre-signed URL Generation | `backend/app/services/s3_service.py` | Implemented |
+| | Public Prescription View Route (HMAC Token) | `backend/app/api/routes/consultations.py:34` | Implemented |
+| | Transactional Email (SendGrid) & SMS (Twilio) | `backend/app/services/notification_service.py`| Implemented |
+| **Privacy & Erasure**| GDPR / HIPAA Right to Erasure Workflow | `backend/app/api/routes/data_deletion.py:20` | Implemented |
+| | Request Access Audit Middleware | `backend/app/middleware/security_header.py` | Implemented |
 
 ---
 
@@ -126,12 +126,11 @@ flowchart TD
 **So that** I receive a structured draft containing Subjective, Objective, Assessment, Plan, proposed medications, and drug interaction warnings.
 
 - **Scenario: Successful extraction and safety check**
-  - *Given* a consultation has status `AUDIO_UPLOADED` and valid transcript text,
-  - *When* `POST /consultations/{id}/process` is invoked,
-  - *Then* the backend returns HTTP 202 Accepted and spawns a background job,
-  - *And* `llama-3.1-8b-instant` outputs structured JSON matching the clinical schema,
-  - *And* each extracted medication is checked against the patient's existing medications and allergies via pgvector similarity search,
-  - *And* consultation status transitions to `COMPLETED` with new rows inserted into `soap_notes`, `medications`, `diagnoses`, and `interactions`.
+  - *Given* a consultation audio stream has been uploaded to S3 and `_run_transcription` is triggered,
+  - *When* background processing executes,
+  - *Then* Deepgram `nova-3-medical` transcribes the audio and `llama-3.3-70b-versatile` (with `llama-3.1-8b-instant` fallback) outputs structured JSON matching the clinical schema,
+  - *And* pairwise medication combinations are checked against clinical guidelines via `pgvector` HNSW cosine search (`limit 3`),
+  - *And* consultation status transitions to `AWAITING_REVIEW` with new rows inserted into `soap_notes`, `medications`, `diagnoses`, and `interactions`, requiring clinician approval (`POST /consultations/{id}/approve` -> `COMPLETE`) before prescription generation.
 
 ### US-03: Prescription PDF Generation & Dispatch
 **As an** attending physician,  
@@ -139,12 +138,12 @@ flowchart TD
 **So that** the patient can present it to a pharmacy immediately.
 
 - **Scenario: Clinician generates and sends prescription**
-  - *Given* a consultation in `COMPLETED` status with at least one prescribed medication,
+  - *Given* a consultation in `COMPLETE` status with a SOAP note,
   - *When* the doctor triggers `POST /consultations/{id}/prescription`,
-  - *Then* WeasyPrint compiles the HTML template with the doctor's license, clinic address, patient details, and medication instructions,
-  - *And* the PDF is uploaded to `clearnote-pdfs-s3`,
-  - *And* if patient has email or phone, SendGrid/Twilio dispatches a secure link,
-  - *And* the endpoint returns a pre-signed download URL with a 1-hour expiration.
+  - *Then* WeasyPrint compiles the HTML template with the doctor's license, clinic address, patient details, signature, and medication instructions,
+  - *And* the PDF is uploaded to `PDF_BUCKET_NAME`,
+  - *And* if the patient has an email, SendGrid dispatches a secure signed link,
+  - *And* the endpoint returns a pre-signed download URL, signed token, and shareable URL.
 
 ### US-04: Patient Data Deletion (Right to Erasure)
 **As a** compliance officer or patient,  
@@ -152,24 +151,24 @@ flowchart TD
 **So that** all clinical records, audio files, and prescriptions are permanently purged in compliance with privacy regulations.
 
 - **Scenario: Patient record erasure**
-  - *Given* an authenticated doctor submits `POST /data-deletion/request` with a valid `patient_id`,
-  - *When* the deletion job executes,
+  - *Given* an authenticated doctor submits `POST /data-deletion/` with a valid `patient_id`,
+  - *When* the deletion job executes via `POST /data-deletion/{id}/process`,
   - *Then* S3 audio files and PDF prescriptions are deleted via Boto3,
   - *And* consultations, SOAP notes, medications, diagnoses, and patient records are deleted in a transactional cascade,
-  - *And* the request status is marked `COMPLETED` in `data_deletion_requests`.
+  - *And* the request status is marked `PROCESSED` in `data_deletion_requests`.
 
 ---
 
 ## 6. Success Metrics & Performance Benchmarks
 
-| Metric | Target | Measurement Method |
+| Metric | Target | Measurement Status |
 | :--- | :--- | :--- |
-| **Transcription Latency** | `< 600ms` interim word latency | Time from microphone buffer flush to WebSocket transcript arrival |
-| **Clinical Extraction Latency** | `< 4.5 seconds` end-to-end | Execution time of `llm_service.extract_soap_and_medications` on Groq |
-| **Vector Retrieval Latency** | `< 60ms` per query | FastEmbed local CPU inference + PostgreSQL cosine search (`<=>`) |
-| **Prescription Generation** | `< 1.2 seconds` | WeasyPrint HTML rendering and S3 upload |
-| **Documentation Time Saved** | `> 70%` reduction | Pre- vs post-implementation clinician minutes spent per patient chart |
-| **Interaction Detection Rate** | `100%` recall on critical pairs | Benchmark validation against standard clinical guideline datasets |
+| **Transcription Latency** | `< 600ms` interim word latency | Target SLA (not measured in offline CI suite) |
+| **Clinical Extraction Latency** | `< 4.5 seconds` end-to-end | Target SLA (not measured in offline CI suite) |
+| **Vector Retrieval Latency** | `< 60ms` per query | Target SLA via FastEmbed + pgvector HNSW |
+| **Prescription Generation** | `< 1.2 seconds` | Target SLA via WeasyPrint + S3 |
+| **SOAP Entity Extraction Eval** | Med Recall $\ge 95\%$, ICD-10 $\ge 90\%$, Allergy $100\%$ | Enforced in `backend/tests/evals/test_clinical_evals.py` (with mocked Groq responses) |
+| **RAG Retrieval Accuracy** | Recall@3 $\ge 90\%$, Precision@3 $\ge 30\%$, MRR $\ge 80\%$ | Measured in `backend/tests/evals/test_rag_retrieval_evals.py` (`12` labelled queries / `18` chunks: `Precision@3 = 0.3333`, `Recall@3 = 1.0000`, `MRR = 1.0000`) |
 
 ---
 

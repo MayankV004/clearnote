@@ -25,7 +25,7 @@
 ### 🟢 Phase 4: AI & Medical Pipeline (100% Complete)
 * **Goal:** Automate medical documentation and transcription.
 * **Status:** Fully functional.
-* **Tech Stack:** Deepgram/Whisper (Audio), Groq (LLM), VectorDB (RAG), ReportLab (PDFs).
+* **Tech Stack:** Deepgram Nova-3 Medical (`nova-3-medical`), Groq (`llama-3.3-70b-versatile` / `llama-3.1-8b-instant`), FastEmbed (`nomic-ai/nomic-embed-text-v1.5`) + PostgreSQL `pgvector` HNSW (RAG), WeasyPrint + Jinja2 (PDFs).
 
 ### 🟢 Phase 5: Compliance & Data Privacy (100% Complete)
 * **Goal:** Ensure HIPAA/GDPR compliance and mathematically guarantee data isolation.
@@ -57,20 +57,21 @@
 - [x] **Pre-signed URLs:** Secure, expiring links for downloading PDFs and audio without proxying through the backend.
 
 ### 4. The Consultation Pipeline 🟢
-- [x] **Audio Recording:** Frontend logic to capture microphone input.
-- [x] **Transcription:** Integration with Deepgram/Whisper to convert medical audio to text.
-- [x] **RAG (Retrieval-Augmented Generation):** Medical guideline ingestion and vector search for clinical context.
-- [x] **LLM Integration:** Groq API integration to structure the transcription into professional SOAP notes and prescriptions.
-- [x] **PDF Engine:** Automated generation of the final PDF prescription stamped with the doctor's details and signature.
+- [x] **Audio Recording:** Frontend logic to capture microphone input and stream over authenticated WebSockets.
+- [x] **Transcription:** Integration with Deepgram Nova-3 Medical (`nova-3-medical`) to convert medical audio to text.
+- [x] **RAG (Retrieval-Augmented Generation):** Medical guideline ingestion (`pdfplumber` + `RecursiveCharacterTextSplitter`) and local `FastEmbed` + `pgvector` HNSW cosine search for pairwise drug-drug interactions.
+- [x] **LLM Integration:** Groq API (`llama-3.3-70b-versatile`, fallback `llama-3.1-8b-instant`) to structure transcriptions into SOAP notes, ICD-10 codes, and medications.
+- [x] **Human-in-the-Loop Gate:** Mandatory clinician sign-off (`AWAITING_REVIEW` -> `COMPLETE`) before prescription generation.
+- [x] **PDF Engine:** WeasyPrint + Jinja2 generation of the final PDF prescription stamped with the doctor's details and digital signature.
 - [x] **Prescription Regeneration:** Integrated notification service and real-time UI feedback (Sonner) for regenerating prescriptions.
 
 ### 5. Security Hardening 🟢
-- [x] **Rate Limiting:** `slowapi` implementation restricting global endpoints to 60 requests/minute.
+- [x] **Rate Limiting:** `slowapi` implementation restricting global endpoints to 60 requests/minute (and stricter limits on public prescriptions, guideline ingestion, and data deletion).
 - [x] **HTTP Security Headers:** Custom middleware enforcing HSTS, CSP, and X-Frame-Options.
-- [x] **Immutable Audit Logging:** Asynchronous middleware that silently records every data-mutating request (POST/PATCH/DELETE) into an `audit_logs` table for compliance.
+- [x] **Immutable Audit Logging:** Asynchronous middleware that silently records every data-mutating request (POST/PATCH/DELETE/PUT) into an `audit_logs` table for compliance.
 
 ### 6. Final Features 🟢
-- [x] **Row-Level Security (RLS):** Apply Postgres policies so database queries automatically filter by `doctor_id` at the lowest level, preventing accidental data leaks.
-- [x] **Data Deletion / GDPR:** A `data_deletion_requests` system for patients to formally request their medical data be purged.
-- [x] **Playwright E2E Tests:** Automated scripts to simulate a user signing in, creating a patient, and running a consultation.
-- [x] **Production Deployment:** Writing the Vercel `postinstall` scripts and configuring Render/AWS for the backend.
+- [x] **Row-Level Security (RLS):** Postgres policies parameterized via `set_rls_doctor_id` so database queries automatically scope by `doctor_id`.
+- [x] **Data Deletion / GDPR:** A `data_deletion_requests` system with S3 audio/PDF cascade purge for patient right-to-erasure.
+- [x] **Backend & E2E Tests:** 117 passing backend `pytest` tests (`117 passed, 2 warnings in 7.40s`) including a 12-query RAG retrieval benchmark (`Precision@3 = 0.3333`, `Recall@3 = 1.0000`, `MRR = 1.0000`), plus Playwright E2E scripts under `frontend/tests/e2e/`.
+- [x] **Production Deployment:** Vercel & Render deployment configuration (`render.yaml`, `vercel.json`) and GitHub Actions CI.

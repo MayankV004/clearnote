@@ -7,7 +7,7 @@ Welcome to **Clearnote**! This document provides instructions for new collaborat
 ## 🛠️ Prerequisites
 
 Before you begin, ensure you have the following installed on your machine:
-- **Node.js** (v18+)
+- **Node.js** (v20+)
 - **Python** (v3.12+)
 - **uv** (Python packaging & dependency manager)
 - **Docker** (for local S3 storage)
@@ -26,13 +26,17 @@ You'll need API keys for the following services:
 4. Set up a Webhook in Clerk pointing to `<your-ngrok-url>/webhooks/clerk` and subscribe to `user.created` events.
 5. Grab the Webhook Secret key.
 
-### **NeonDB (PostgreSQL)**
-1. Create an async PostgreSQL database (we use [NeonDB](https://neon.tech)).
+### **NeonDB (PostgreSQL + pgvector)**
+1. Create an async PostgreSQL database with `pgvector` enabled (we use [NeonDB](https://neon.tech)).
 2. Grab the connection string. Ensure it uses `postgresql+asyncpg://`.
 
 ### **Deepgram (Transcription)**
 1. Create an account at [deepgram.com](https://deepgram.com).
-2. Generate an API Key for the Nova-2 Medical transcription model.
+2. Generate an API Key for the Nova-3 Medical (`nova-3-medical`) transcription model.
+
+### **Groq (Clinical LLM Inference)**
+1. Create an account at [console.groq.com](https://console.groq.com).
+2. Generate an API key (`llama-3.3-70b-versatile` primary, `llama-3.1-8b-instant` fallback).
 
 ---
 
@@ -79,7 +83,7 @@ The backend is built with FastAPI, SQLAlchemy (Async), and the Deepgram Python S
    ```
 
 3. Configure Environment Variables:
-   Create a `.env` file in the `backend/` directory based on `.env.example`:
+   Create a `.env` file in the `backend/` directory:
    ```ini
    DATABASE_URL='postgresql+asyncpg://<YOUR_NEON_DB_URL>'
    
@@ -95,13 +99,24 @@ The backend is built with FastAPI, SQLAlchemy (Async), and the Deepgram Python S
    AWS_REGION=us-east-1
    AWS_ENDPOINT_URL=http://localhost:9000
    AUDIO_BUCKET_NAME=clearnote-audio
+   PDF_BUCKET_NAME=clearnote-pdfs
    
    DEEPGRAM_API_KEY=your_deepgram_api_key
+   GROQ_API_KEY=your_groq_api_key
+
+   # Optional: Upstash Redis cache & patient notifications
+   UPSTASH_REDIS_REST_URL=
+   UPSTASH_REDIS_REST_TOKEN=
+   SENDGRID_API_KEY=
+   SENDGRID_FROM_EMAIL=noreply@clearnote.com
+   TWILIO_ACCOUNT_SID=
+   TWILIO_AUTH_TOKEN=
+   TWILIO_PHONE_NUMBER=
    ```
 
 4. Run Database Migrations:
    ```bash
-   alembic upgrade head
+   uv run alembic upgrade head
    ```
 
 5. Start the Backend Server:
@@ -109,6 +124,13 @@ The backend is built with FastAPI, SQLAlchemy (Async), and the Deepgram Python S
    uv run uvicorn app.main:app --reload
    ```
    *The backend will be available at `http://localhost:8000`.*
+
+6. Run Backend Tests & Retrieval Eval:
+   ```bash
+   uv run pytest
+   uv run python -m tests.evals.test_rag_retrieval_evals
+   ```
+   *Runs the 117-test backend suite (`unit`, `integration`, mocked SOAP `evals`, and FastEmbed RAG retrieval `evals`).*
 
 ---
 

@@ -6,7 +6,7 @@ This document inventories all runtime and development dependencies across the Cl
 
 ## 1. Backend Technology Stack (`backend/`)
 
-Runtime: **Python 3.12+** | Package Manager: **uv / pip** (`pyproject.toml`) | Framework: **FastAPI 0.115+** / **Starlette**
+Runtime: **Python 3.12+** | Package Manager: **uv / pip** (`pyproject.toml`) | Framework: **FastAPI 0.136.3+** / **Starlette**
 
 ### 1.1 Core Backend Dependencies
 
@@ -26,11 +26,12 @@ Runtime: **Python 3.12+** | Package Manager: **uv / pip** (`pyproject.toml`) | F
 
 | Package | Version Spec | Purpose | Rationale & Code Usage |
 | :--- | :--- | :--- | :--- |
-| `deepgram-sdk` | `>=7.3.1` | Speech-to-Text (STT) Client | Transcribes live WebSocket audio streams and prerecorded consultation files using `nova-3-medical` model (`backend/app/services/deepgram_service.py:24`). |
-| `groq` | `>=1.4.0` | High-Speed LLM Inference | Low-latency inference for structured SOAP extraction (`llama-3.1-8b-instant`) and drug interaction verification (`llama-3.3-70b-versatile`) (`backend/app/services/llm_service.py:16`). |
-| `fastembed` | `>=0.9.1` | Local Dense Embeddings | On-premise / host-CPU vector embedding (`nomic-ai/nomic-embed-text-v1.5`, 768-dim) eliminating external latency and token cost for RAG (`backend/app/services/rag_service.py:26`). |
-| `langchain-text-splitters`| `>=0.0.1`| Document Chunking | Chunks clinical guidelines into 1000-character segments with 200-character overlap for vector search (`backend/app/services/rag_service.py:38`). |
-| `weasyprint` | `>=69.0` | Headless PDF Generation | Renders pixel-perfect, printable clinical prescriptions from HTML+CSS templates (`backend/app/services/pdf_service.py:17`). |
+| `deepgram-sdk` | `>=7.3.1` | Speech-to-Text (STT) Client | Transcribes live WebSocket audio streams and prerecorded consultation files using `nova-3-medical` model (`backend/app/services/deepgram_service.py:62`). |
+| `groq` | `>=1.4.0` | High-Speed LLM Inference | Low-latency inference for structured SOAP extraction (`llama-3.3-70b-versatile`, fallback `llama-3.1-8b-instant`) and drug interaction verification (`backend/app/services/llm_service.py`, `backend/app/services/rag_service.py`). |
+| `fastembed` | `>=0.9.1` | Local Dense Embeddings | On-premise / host-CPU vector embedding (`nomic-ai/nomic-embed-text-v1.5`, 768-dim) eliminating external latency and token cost for RAG (`backend/app/services/rag_service.py:27`). |
+| `langchain-text-splitters`| `>=0.0.1`| Document Chunking | Chunks clinical guidelines into 800-character segments with 150-character overlap using clinical delimiters (`backend/app/services/rag_service.py:89`). |
+| `pdfplumber` | `>=0.11.0` | PDF Text Extraction | Extracts multi-column text and tables from ingested clinical guideline PDFs (`backend/app/services/rag_service.py:5`). |
+| `weasyprint` | `>=69.0` | Headless PDF Generation | Renders pixel-perfect, printable clinical prescriptions from HTML+CSS templates (`backend/app/services/pdf_service.py:6`). |
 | `jinja2` | `>=3.1.6` | HTML Template Rendering | Injects doctor, patient, and medication variables into `prescription_template.html` (`backend/app/services/pdf_service.py:18`). |
 
 ### 1.3 Infrastructure, Storage, Auth & Networking
@@ -45,7 +46,7 @@ Runtime: **Python 3.12+** | Package Manager: **uv / pip** (`pyproject.toml`) | F
 | `svix` | `>=1.95.1` | Webhook Verification | Cryptographic verification of incoming Clerk authentication webhooks (`backend/app/api/routes/webhooks.py:18`). |
 | `python-multipart` | `>=0.0.32` | Form Data Parser | Handles multipart/form-data uploads for consultation audio file uploads (`backend/app/api/routes/consultations.py:59`). |
 | `email-validator` | `>=2.3.0` | Email Validation | RFC-compliant email string validation across doctor and patient schemas. |
-| `slowapi` | `>=0.1.10` | Rate Limiting Engine | Declared in pyproject; intended for token bucket API rate limiting. |
+| `slowapi` | `>=0.1.10` | Rate Limiting Engine | Configured via `SlowAPIMiddleware` (`60/minute` global default) and route-level limits (`backend/app/main.py`, `backend/app/core/limiter.py`). |
 
 ### 1.4 Backend Development & Test Dependencies
 
@@ -87,8 +88,7 @@ Runtime: **Node.js 20+** | Framework: **Next.js 16.2.6** | View Library: **React
 | `next-themes` | `^0.4.6` | Dark/Light Mode Switcher | Manages system/light/dark color scheme state persistence. |
 | `clsx` & `tailwind-merge`| `^2.1.1` / `^3.6.0`| Class Name Composition | Conditional CSS class merging avoiding Tailwind specificity conflicts (`frontend/src/lib/utils.ts`). |
 | `class-variance-authority`| `^0.7.1` | Component Variants | Type-safe design variant generation for buttons, badges, and modals. |
-| `animejs` | `^4.5.0` | UI Motion & Transitions | Timeline animations for landing page hero and dashboard micro-interactions. |
-| `lenis` | `^1.3.23` | Smooth Scrolling | Smooth inertial scrolling on marketing and landing routes (`frontend/src/app/ui/SmoothScroll.tsx`). |
+| `motion` | `^14.14.0` | UI Motion & Transitions | Lightweight functional transform/opacity transitions (`Reveal`, `FadeStagger`, `AnimatedNumber`) with reduced-motion support. |
 | `tw-animate-css` | `^1.4.0` | CSS Keyframe Animations | Prebuilt animation presets for modal reveals and status badges. |
 
 ### 2.3 Frontend Development & Testing Dependencies
@@ -98,40 +98,30 @@ Runtime: **Node.js 20+** | Framework: **Next.js 16.2.6** | View Library: **React
 | `typescript` | `^5` | Strict static typing across routes and components |
 | `@playwright/test` | `^1.62.0` | End-to-end browser automation and clinical workflow validation |
 | `eslint` & `eslint-config-next`| `^9` / `16.2.6` | Code quality, accessibility, and Next.js Best Practice linting |
-| `@types/animejs` | `^3.1.13` | TypeScript type declarations for Anime.js |
+| `shadcn` | `^4.13.0` | Component scaffolding CLI (in `devDependencies`) |
 
 ---
 
-## 3. Dependency Audit: Redundancies, Deprecations & Risks
+## 3. Dependency Audit: Current Notes & Risks
 
-```mermaid
-pie title Backend Dependency Risk Breakdown
-    "Active & Healthy" : 18
-    "Unpinned / Loose Version (>=)" : 26
-    "Unused / Redundant" : 3
-    "Deprecated / EOL Risk" : 1
-```
-
-### 3.1 Backend Audit Findings
+### 3.1 Backend Audit Notes
 
 1. **Deprecated Cryptography Library (`python-jose[cryptography]>=3.5.0`)**:
-   - *Risk*: `python-jose` has been effectively unmaintained since 2021 and contains unpatched CVE advisories in underlying JOSE algorithms.
-   - *Recommendation*: Migrate to `PyJWT>=2.10.1` or use native Clerk JWKS decoding provided by `clerk-backend-api`.
-2. **Redundant / Dead Dependencies in `pyproject.toml`**:
-   - `google-genai>=2.8.0`: Added to `pyproject.toml` but **never imported or invoked** in any module (the system uses Groq `llama-3.1-8b-instant` and `llama-3.3-70b-versatile`). Adds bloat and security attack surface.
-   - `pdfplumber>=0.11.0`: PDF generation is handled by `weasyprint`, and guideline ingestion in `rag_service.py` operates on raw text. `pdfplumber` is not imported anywhere in `backend/app/`.
-3. **Declared but Unconfigured Rate Limiting (`slowapi>=0.1.10`)**:
-   - *Finding*: `slowapi` is declared in `dependencies`, but `backend/app/main.py` has no Limiter state attached and none of the API routes have `@limiter.limit` decorators. Public and expensive AI endpoints are unprotected from abuse.
+   - *Risk*: `python-jose` has been effectively unmaintained since 2021 and has upstream JOSE CVE advisories.
+   - *Recommendation*: Migrate to `PyJWT` or native Clerk JWKS decoding via `clerk-backend-api`.
+2. **Removed Unused Dependencies**:
+   - `google-genai` has been removed from `backend/pyproject.toml` (and `uv.lock` regenerated). `pdfplumber` is actively used in `backend/app/services/rag_service.py` for clinical PDF text extraction.
+3. **Rate Limiting (`slowapi>=0.1.10`)**:
+   - Configured in `backend/app/main.py` (`SlowAPIMiddleware`, global `60/minute` default) with tighter `@limiter.limit` decorators on public prescription downloads (`10/minute`), guideline ingestion (`5/minute`), and data deletion (`10/minute`).
 4. **Permissive Version Specifiers (`>=`)**:
-   - *Finding*: All backend dependencies use `>=` rather than pinned versions (`==`) or strict upper bounds (`~=`). A minor/major release of `fastapi`, `pydantic`, or `deepgram-sdk` could break production builds unpredictably.
+   - *Finding*: `pyproject.toml` uses `>=` bounds, while reproducible installs rely on `backend/uv.lock`.
 5. **Native C-Library Container Dependencies (`weasyprint>=69.0`)**:
-   - *Finding*: WeasyPrint depends on host-level dynamic libraries (`libpango-1.0-0`, `libharfbuzz0b`, `libpangoft2-1.0-0`, `libcairo2`). In minimal Alpine or Slim Docker containers, runtime startup will fail with `OSError: cannot load library 'pango-1.0'` unless explicitly installed via apt/apk.
+   - *Finding*: WeasyPrint depends on host-level dynamic libraries (`libpango-1.0-0`, `libharfbuzz0b`, `libpangoft2-1.0-0`, `libcairo2`). In minimal Alpine or Slim Docker containers, runtime startup requires installing those system libraries via apt/apk.
 
-### 3.2 Frontend Audit Findings
+### 3.2 Frontend Audit Notes
 
-1. **CLI Tool Installed in Runtime Dependencies (`shadcn: ^4.13.0`)**:
-   - *Risk*: `shadcn` is a development CLI generator tool, yet it is placed under `"dependencies"` in `frontend/package.json`. It inflates production container/bundle size. It should be moved to `"devDependencies"` or removed.
-2. **Version Incompatibility: `animejs ^4.5.0` vs `@types/animejs ^3.1.13`**:
-   - *Risk*: Anime.js v4 introduced significant API restructuring from v3, while the types package is pinned to v3. This causes TypeScript type definition drift and requires `any` casts in animation code.
-3. **Zod v4 Pre-Release (`zod: ^4.4.3`)**:
-   - *Risk*: Using pre-release/v4 Zod builds with `@hookform/resolvers` can lead to subtle schema resolution bugs, as standard resolvers are battle-tested against Zod v3.23.x.
+1. **Cleaned Legacy Animation & CLI Dependencies**:
+   - `animejs`, `@types/animejs`, and `lenis` were removed from `frontend/package.json` and replaced by `motion`.
+   - `shadcn` was relocated from `dependencies` to `devDependencies` in `frontend/package.json`.
+2. **Zod v4 (`zod: ^4.4.3`)**:
+   - Verify compatibility across `@hookform/resolvers` (`^5.4.0`) whenever adding complex custom Zod refinements.

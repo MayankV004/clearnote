@@ -102,6 +102,16 @@ class RAGService:
             ],
         )
 
+    @staticmethod
+    def format_document_text(chunk_text: str) -> str:
+        """Prefix guideline chunk text for Nomic search_document embedding."""
+        return f"search_document: {chunk_text}"
+
+    @staticmethod
+    def build_interaction_query(drug_a: str, drug_b: str, diag_context: str) -> str:
+        """Build the Nomic search_query string for pairwise drug interaction lookup."""
+        return f"search_query: drug interaction between {drug_a} and {drug_b} in context of {diag_context}"
+
     async def _process_pdf(self, tmp_path: str, source_name: str, db: AsyncSession) -> int:
         """Shared PDF processing logic: extract text → chunk → embed → store."""
         import os
@@ -116,7 +126,7 @@ class RAGService:
                         continue
                     text_chunks = splitter.split_text(text)
                     for chunk_text in text_chunks:
-                        embedding = await self.get_embedding(f"search_document: {chunk_text}")
+                        embedding = await self.get_embedding(self.format_document_text(chunk_text))
                         chunk_record = GuidelineChunk(
                             source=source_name,
                             page=i + 1,
@@ -156,7 +166,7 @@ class RAGService:
                 drug_a = medications[i].name
                 drug_b = medications[j].name
                 
-                query_text = f"search_query: drug interaction between {drug_a} and {drug_b} in context of {diag_context}"
+                query_text = self.build_interaction_query(drug_a, drug_b, diag_context)
                 query_embedding = await self.get_embedding(query_text)
 
                 # Cosine similarity search using pgvector `<=>` (with fallback for unsupported dialects)

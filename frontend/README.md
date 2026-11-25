@@ -1,36 +1,37 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# ClearNote Frontend
+
+Clinical web portal for **ClearNote**, built with **Next.js 16.2.6 (App Router)**, **React 19**, **TypeScript 5**, **Tailwind CSS v4**, **TanStack React Query v5**, **Clerk**, and **Base UI**.
+
+## Fonts & Design System
+
+- Typography uses **Plus Jakarta Sans** (`--font-sans`) and **JetBrains Mono** (`--font-mono`) via `next/font/google` in `src/app/layout.tsx`.
+- Design principles and component architecture are documented in [FRONTEND_GUIDE.md](./FRONTEND_GUIDE.md) and [../docs/DESIGN_PRINCIPLES.md](../docs/DESIGN_PRINCIPLES.md).
 
 ## Getting Started
 
-First, run the development server:
+Install dependencies and run the development server:
 
 ```bash
+npm install
 npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+Open [http://localhost:3000](http://localhost:3000) in your browser.
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+## Available Scripts
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+| Script | Purpose |
+| :--- | :--- |
+| `npm run dev` | Start Next.js dev server (`NODE_OPTIONS='--max-old-space-size=4096' next dev`) |
+| `npm run build` | Build production bundle |
+| `npm run start` | Run production server |
+| `npm run lint` | Run ESLint checks |
+| `npm run test:e2e` | Run Playwright E2E suite (`tests/e2e/`) |
+| `npx tsc --noEmit` | Run strict TypeScript type-checking |
 
-## Learn More
+## Required Environment Variables (`frontend/.env`)
 
-To learn more about Next.js, take a look at the following resources:
-
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
-
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
-
-## Deploy on Vercel
-
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
-
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+- `NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY` / `CLERK_SECRET_KEY`
+- `NEXT_PUBLIC_CLERK_SIGN_IN_URL` / `NEXT_PUBLIC_CLERK_SIGN_UP_URL`
+- `NEXT_PUBLIC_CLERK_SIGN_IN_FALLBACK_REDIRECT_URL` / `NEXT_PUBLIC_CLERK_SIGN_UP_FALLBACK_REDIRECT_URL`
+- `NEXT_PUBLIC_API_URL` / `API_URL`

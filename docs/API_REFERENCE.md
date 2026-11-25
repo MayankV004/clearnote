@@ -174,6 +174,10 @@ Every response includes:
 ### 4.1 List Doctor's Patients
 - **Endpoint**: `GET /patients/`
 - **Auth**: Required (`get_current_doctor`)
+- **Query Parameters**:
+  - `page` (int, default `1`, min `1`)
+  - `page_size` (int, default `50`, min `1`, max `100`)
+- **Response Headers**: `X-Total-Count`, `X-Page`, `X-Page-Size`
 - **Response `200 OK`** (`List[PatientResponse]`):
 ```json
 [
@@ -269,7 +273,11 @@ Every response includes:
 ### 5.2 List Patient Consultations
 - **Endpoint**: `GET /consultations/`
 - **Auth**: Required (`get_current_doctor`)
-- **Query Parameter**: `patient_id` (UUID - required)
+- **Query Parameters**:
+  - `patient_id` (UUID - required)
+  - `page` (int, default `1`, min `1`)
+  - `page_size` (int, default `50`, min `1`, max `100`)
+- **Response Headers**: `X-Total-Count`, `X-Page`, `X-Page-Size`
 - **Response `200 OK`** (`List[ConsultationResponse]`).
 
 ### 5.3 Get Consultation Detail
@@ -281,18 +289,19 @@ Every response includes:
   "id": "1b01c3c2-d352-4cf4-91bc-d18386f91cb1",
   "doctor_id": "9b1deb4d-3b7d-4bad-9bdd-2b0d7b3dcb6d",
   "patient_id": "e4a2d8a0-9c2b-4568-a831-291d9f8c1234",
-  "status": "COMPLETED",
-  "audio_url": "audio/1b01c3c2-d352-4cf4-91bc-d18386f91cb1.webm",
-  "transcript": "Doctor: Hello Mr. Doe... Patient: I have had a severe dry cough...",
-  "prescription_pdf_url": "prescriptions/1b01c3c2-d352-4cf4-91bc-d18386f91cb1.pdf",
+  "status": "COMPLETE",
+  "audio_s3_key": "audio/1b01c3c2-d352-4cf4-91bc-d18386f91cb1.webm",
+  "duration_seconds": 45,
+  "processing_error": null,
   "created_at": "2026-11-19T10:15:00Z",
-  "updated_at": "2026-11-19T10:16:30Z",
   "soap_note": {
     "id": "5fa23bb0-1234-4567-8901-abcdef012345",
+    "raw_transcript": "Doctor: Hello Mr. Doe... Patient: I have had a severe dry cough...",
     "subjective": "Patient reports dry cough for 5 days with low grade fever.",
     "objective": "Lungs clear to auscultation bilaterally. Temp 99.1F, BP 124/82.",
     "assessment": "Acute upper respiratory tract infection.",
-    "plan": "Hydration, rest, and symptomatic relief with Dextromethorphan."
+    "plan": "Hydration, rest, and symptomatic relief with Dextromethorphan.",
+    "edited_by_doctor": false
   },
   "medications": [
     {
@@ -301,23 +310,28 @@ Every response includes:
       "dosage": "15mg",
       "frequency": "Every 4 hours PRN",
       "duration": "5 days",
-      "instructions": "Do not exceed 6 doses in 24 hours"
+      "route": "oral",
+      "rag_checked": true,
+      "rag_verdict": null
     }
   ],
   "diagnoses": [
     {
       "id": "3cd45e6f-7890-1234-5678-9abcdef01234",
-      "code": "J06.9",
-      "description": "Acute upper respiratory infection, unspecified",
-      "is_primary": true
+      "icd_code": "J06.9",
+      "description": "Acute upper respiratory infection, unspecified"
     }
   ],
   "interactions": [
     {
       "id": "4de56f7a-8901-2345-6789-abcdef012345",
-      "severity": "INFO",
-      "description": "No significant interaction with current baseline Metformin.",
-      "recommendation": "Monitor blood glucose as illness may cause transient elevation."
+      "drug_a": "Dextromethorphan HBr",
+      "drug_b": "Metformin",
+      "severity": "NONE",
+      "guideline_ref": "WHO Model Formulary, p.47",
+      "mechanism": "No significant interaction with current baseline Metformin.",
+      "recommendation": "Monitor blood glucose as illness may cause transient elevation.",
+      "confidence": 0.91
     }
   ]
 }
@@ -364,31 +378,32 @@ Every response includes:
 ### 5.6 Approve & Sign Off Consultation
 - **Endpoint**: `POST /consultations/{consultation_id}/approve`
 - **Auth**: Required (`get_current_doctor`)
-- **Description**: Attending physician reviews and signs off on the consultation notes, diagnoses, and medications. Transitions status from `AWAITING_REVIEW` to `COMPLETED`. Required before prescription generation is unlocked.
+- **Description**: Attending physician reviews and signs off on the consultation notes, diagnoses, and medications. Transitions status from `AWAITING_REVIEW` to `COMPLETE`. Required before prescription generation is unlocked.
 - **Response `200 OK`** (`ConsultationResponse`):
 ```json
 {
   "id": "1b01c3c2-d352-4cf4-91bc-d18386f91cb1",
-  "status": "COMPLETED",
-  "updated_at": "2026-11-19T10:16:30Z"
+  "status": "COMPLETE"
 }
 ```
 - **Errors**:
-  - `400 Bad Request`: `{"detail": "Consultation must be in AWAITING_REVIEW status to approve (current: PENDING)"}`
-  - `404 Not Found`: `{"detail": "Consultation not found"}`
+  - `400 Bad Request`: `{"detail": "Consultation cannot be approved from status 'PENDING'. Must be AWAITING_REVIEW."}`
+  - `404 Not Found`: `{"detail": "Consultation <id> not found."}`
 
 ### 5.7 Generate Prescription PDF
 - **Endpoint**: `POST /consultations/{consultation_id}/prescription`
 - **Auth**: Required (`get_current_doctor`)
-- **Description**: Compiles prescription HTML using WeasyPrint, uploads to S3, returns pre-signed URL, and triggers async email to patient if email exists. Requires consultation status to be `COMPLETED`.
+- **Description**: Compiles prescription HTML using WeasyPrint, uploads to S3, returns pre-signed URL + HMAC share token/URL, and triggers async email to patient if email exists. Requires consultation status to be `COMPLETE`.
 - **Response `200 OK`**:
 ```json
 {
-  "url": "https://clearnote-pdfs-s3.s3.ap-south-1.amazonaws.com/prescriptions/1b01c3c2-d352-4cf4-91bc-d18386f91cb1.pdf?AWSAccessKeyId=..."
+  "url": "https://clearnote-pdfs.s3.us-east-1.amazonaws.com/prescriptions/1b01c3c2-d352-4cf4-91bc-d18386f91cb1.pdf?...",
+  "token": "<hmac_signed_token>",
+  "share_url": "http://localhost:3000/consultations/public/1b01c3c2-d352-4cf4-91bc-d18386f91cb1/prescription?token=..."
 }
 ```
 - **Errors**:
-  - `400 Bad Request`: `{"detail": "Consultation must be approved and completed by doctor before generating prescription (current status: AWAITING_REVIEW)."}`
+  - `400 Bad Request`: `{"detail": "Consultation must be approved by clinician before generating a prescription."}`
   - `404 Not Found`: Consultation not found.
 
 ### 5.8 Get Existing Prescription URL
@@ -397,7 +412,9 @@ Every response includes:
 - **Response `200 OK`**:
 ```json
 {
-  "url": "https://clearnote-pdfs-s3.s3.ap-south-1.amazonaws.com/prescriptions/1b01c3c2-d352-4cf4-91bc-d18386f91cb1.pdf?AWSAccessKeyId=..."
+  "url": "https://clearnote-pdfs.s3.us-east-1.amazonaws.com/prescriptions/1b01c3c2-d352-4cf4-91bc-d18386f91cb1.pdf?...",
+  "token": "<hmac_signed_token>",
+  "share_url": "http://localhost:3000/consultations/public/1b01c3c2-d352-4cf4-91bc-d18386f91cb1/prescription?token=..."
 }
 ```
 - **Errors**:
